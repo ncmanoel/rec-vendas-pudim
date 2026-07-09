@@ -32,7 +32,7 @@ export async function POST(request: Request) {
       await scheduleNextStep(phone, 'SEND_MSG_4_TRUST', 5, { firstName, productName });
     }
     else if (action === 'SEND_MSG_4_TRUST') {
-      const msg4 = `O melhor?\n\nEu acredito e confio em você!\n\nO PDF chega no seu WhatsApp agora e, depois disso, você faz o Pix, tá?\n\nTenho certeza de que vai amar!`;
+      const msg4 = `O melhor?\nEu *acredito e confio* em você!\n*Vou te enviar* o PDF aqui no WhatsApp agora e você *faz o Pix depois*, combinado?\nTenho certeza de que vai amar!`;
       await sendWameText(phone, msg4);
       
       // Agenda a Mensagem 5 (Imagem) para daqui 3 segundos
@@ -45,7 +45,7 @@ export async function POST(request: Request) {
       await scheduleNextStep(phone, 'SEND_MSG_6_QUESTION', 3, { firstName, productName });
     }
     else if (action === 'SEND_MSG_6_QUESTION') {
-      const msg6 = `${firstName}, posso te enviar o Livro agora e contar com a sua Honestidade e você paga depois?\n\nPara Sim digite 1\n\nPara Não digite 2`;
+      const msg6 = `Posso te mandar o Material das Caldas?\nPara *Sim* digite 1\nPara *Não* digite 2`;
       await sendWameText(phone, msg6);
       
       // Atualiza o estado no Supabase para AGUARDANDO_RESPOSTA_1_2
@@ -82,8 +82,7 @@ export async function POST(request: Request) {
     }
     // Lógica para envio real dos lembretes (quando der o tempo do QStash)
     else if (action === 'REMINDER_1_QUESTION') {
-      const lembrete = `Olá ${firstName}...\n\nPassando pra confirmar se posso te enviar o Livro agora e contar com a sua Honestidade e você paga depois?\n\nPara Sim digite 1\nPara Não digite 2`;
-      await sendWameText(phone, lembrete);
+      await sendWameText(phone, `Olá ${firstName}, ainda tem interesse?`);
       
       // Agenda o segundo lembrete para 24h
       const { messageId } = await scheduleNextStep(phone, 'REMINDER_2_QUESTION', 24 * 60 * 60, { firstName });

@@ -72,7 +72,7 @@ export async function POST(request: Request) {
         }
 
         // Manda Mensagem 8
-        const msg8 = `Parabéns pela sua postura! 🎉\n\nA Chave Pix para pagamento é:\n\nCPF: 83647139904\n\nNome: Ney Carlos Manoel (meu marido 🥰)\n\nValor: R$ 10,00`;
+        const msg8 = `Parabéns pela sua postura! 🎉\nA Chave Pix para pagamento é:\n*CPF:* 83647139904\n*Nome:* Ney Carlos Manoel (meu marido 🥰)\n*Valor:* R$ 10,00`;
         await sendWameText(phone, msg8);
 
         // Agenda Msg 9, 10, 11 (Pix e Arquivo 1)
@@ -112,7 +112,7 @@ export async function POST(request: Request) {
           try { await qstashClient.messages.delete(qstash_reminder_id); } catch (e) {}
         }
 
-        const msg12 = `Parabéns pela sua decisão!\n\nSegue seu guia com as Caldas que mais Vendem!\n\nDesejo muito sucesso em sua operação e fico à disposição!\n\nCom carinho,\n\nAna`;
+        const msg12 = `Parabéns pela sua decisão!\n\nSegue seu guia com as *Caldas que mais Vendem*!\n\nDesejo muito sucesso em sua operação e fico à disposição!\n\nCom carinho,\n*Ana*`;
         await sendWameText(phone, msg12);
         
         // Envia Material 2
