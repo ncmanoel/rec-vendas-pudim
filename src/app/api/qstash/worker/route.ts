@@ -35,8 +35,8 @@ export async function POST(request: Request) {
       const msg4 = `O melhor?\n\nEu acredito e confio em você!\n\nO PDF chega no seu WhatsApp agora e, depois disso, você faz o Pix, tá?\n\nTenho certeza de que vai amar!`;
       await sendWameText(phone, msg4);
       
-      // Agenda a Mensagem 5 (Imagem) para daqui 0 segundos (imediato após a 4)
-      await scheduleNextStep(phone, 'SEND_MSG_5_IMAGE', 0, { firstName, productName });
+      // Agenda a Mensagem 5 (Imagem) para daqui 3 segundos
+      await scheduleNextStep(phone, 'SEND_MSG_5_IMAGE', 3, { firstName, productName });
     }
     else if (action === 'SEND_MSG_5_IMAGE') {
       await sendWameImage(phone, "https://xzysqeivbibosmryjsqm.supabase.co/storage/v1/object/public/arquivos-bot/Imagem%20Pudim.jpeg", "");
