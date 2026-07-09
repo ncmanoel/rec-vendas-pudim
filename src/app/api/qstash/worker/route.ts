@@ -68,7 +68,7 @@ export async function POST(request: Request) {
       await scheduleNextStep(phone, 'SEND_MSG_11_RECEIPT', 6, { firstName });
     }
     else if (action === 'SEND_MSG_11_RECEIPT') {
-      const msg11 = `${firstName}, fico muito feliz que tenha decidido acessar o meu material.\n\nAssim que você realizar o pagamento é só me encaminhar o comprovante por aqui que já libero o restante do conteúdo, tá bem? 🍮\n\nTenho certeza que esse material vai te ajudar muito na sua jornada! 💛`;
+      const msg11 = `${firstName}, fico muito feliz que tenha decidido acessar o meu material.\n\nAssim que você realizar o pagamento é só me encaminhar o comprovante por aqui que já *libero o restante do conteúdo*, tá bem? 🍮\n\nTenho certeza que esse material vai te ajudar muito na sua jornada! 💛`;
       await sendWameText(phone, msg11);
       
       // Atualiza o estado para aguardar o comprovante
