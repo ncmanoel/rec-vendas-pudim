@@ -120,7 +120,7 @@ async function scheduleNextStep(phone: string, action: string, delaySeconds: num
   const res = await qstashClient.publishJSON({
     url: `${baseUrl}/api/qstash/worker`,
     body: { action, phone, ...extraData },
-    delay: delaySeconds > 0 ? `${delaySeconds}s` : undefined,
+    delay: delaySeconds > 0 ? delaySeconds : undefined,
   });
   
   return res as any;
