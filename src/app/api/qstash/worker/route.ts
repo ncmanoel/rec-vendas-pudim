@@ -114,7 +114,7 @@ export async function POST(request: Request) {
   }
 }
 
-async function scheduleNextStep(phone: string, action: string, delaySeconds: number, extraData: any = {}) {
+async function scheduleNextStep(phone: string, action: string, delaySeconds: number, extraData: any = {}): Promise<{ messageId: string }> {
   const baseUrl = process.env.NEXT_PUBLIC_APP_URL || 'https://sua-url-na-vercel.vercel.app';
   
   const res = await qstashClient.publishJSON({
@@ -123,5 +123,5 @@ async function scheduleNextStep(phone: string, action: string, delaySeconds: num
     delay: delaySeconds > 0 ? `${delaySeconds}s` : undefined,
   });
   
-  return res;
+  return res as any;
 }
