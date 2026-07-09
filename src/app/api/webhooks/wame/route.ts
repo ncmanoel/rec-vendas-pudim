@@ -12,21 +12,17 @@ export async function POST(request: Request) {
     // payload.data.message.extendedTextMessage.text ou payload.message.text
     // Vamos tentar extrair o texto e o telefone de forma genérica baseada na doc REST
     
-    // Pegando quem enviou a mensagem (ex: 5531984138751@s.whatsapp.net)
-    const remoteJid = payload.data?.key?.remoteJid || payload.key?.remoteJid || '';
-    if (!remoteJid || remoteJid.includes('@g.us')) {
-      // Ignora mensagens de grupo ou sem remetente
-      return NextResponse.json({ success: true });
-    }
+    // O Wame manda um payload específico
+    const fromMe = payload.data?.me || payload.data?.key?.fromMe || false;
+    if (fromMe) return NextResponse.json({ success: true }); // Ignora mensagens enviadas pelo próprio robô
 
-    // Se a mensagem foi enviada por nós mesmos, ignorar
-    const fromMe = payload.data?.key?.fromMe || payload.key?.fromMe;
-    if (fromMe) return NextResponse.json({ success: true });
-
-    const phone = remoteJid.split('@')[0];
+    let phone = payload.data?.phoneNumber || '';
+    if (!phone) return NextResponse.json({ success: true });
 
     // Extrair o texto recebido
     const textMessage = 
+      payload.data?.msgContent?.conversation || 
+      payload.data?.msgContent?.extendedTextMessage?.text ||
       payload.data?.message?.extendedTextMessage?.text || 
       payload.data?.message?.conversation || 
       payload.message?.extendedTextMessage?.text ||
@@ -36,25 +32,25 @@ export async function POST(request: Request) {
     const normalizedText = textMessage.trim().toLowerCase();
 
     // Extrair se tem mídia (imagem ou documento) para a etapa de comprovante
-    const hasMedia = 
-      !!payload.data?.message?.imageMessage || 
-      !!payload.data?.message?.documentMessage ||
-      !!payload.message?.imageMessage ||
-      !!payload.message?.documentMessage;
+    const hasMedia = payload.data?.isMedia === true || payload.data?.urlMedia != null || !!payload.data?.fileBase64;
 
     // 1. Buscar o Lead no banco de dados para ver em qual etapa ele está
-    const { data: lead } = await supabase
+    // Como o WhatsApp pode remover o 9o dígito (ex: manda 5541880... e nós salvamos 55419880...),
+    // vamos buscar pelos últimos 8 dígitos do telefone para garantir que ache o lead.
+    const last8Digits = phone.slice(-8);
+
+    const { data: leads } = await supabase
       .from('leads')
       .select('*')
-      .eq('phone', phone)
-      .single();
+      .like('phone', `%${last8Digits}`);
 
-    if (!lead) {
+    if (!leads || leads.length === 0) {
       // Número desconhecido, ignorar
       return NextResponse.json({ success: true });
     }
 
-    const { status, name: firstName, qstash_reminder_id } = lead;
+    const lead = leads[0]; // Pega o primeiro correspondente
+    const { status, name: firstName, qstash_reminder_id, phone: dbPhone } = lead;
 
     // 2. Lógica Baseada no Estado Atual do Lead
 
@@ -78,7 +74,7 @@ export async function POST(request: Request) {
         const baseUrl = process.env.NEXT_PUBLIC_APP_URL || 'https://sua-url.vercel.app';
         await qstashClient.publishJSON({
           url: `${baseUrl}/api/qstash/worker`,
-          body: { action: 'SEND_PIX_SEQUENCE', phone, firstName },
+          body: { action: 'SEND_PIX_SEQUENCE', phone: dbPhone, firstName },
           delay: '5s'
         });
 
