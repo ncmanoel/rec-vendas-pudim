@@ -25,7 +25,7 @@ export async function POST(request: Request) {
       await scheduleNextStep(phone, 'SEND_MSG_3_OFFER', 5, { firstName, productName });
     }
     else if (action === 'SEND_MSG_3_OFFER') {
-      const msg3 = `No Pudim Sem Forno você ganha:\n\n✅ 30 pudins diferentes que todos aprovam e amam comprar de novo!\n\nBônus Incrível:\n\n✅ Receitas das 11 caldas campeãs de vendas 😉\n\nPreço especial 👉 apenas R$ 10,00 no PIX 💠`;
+      const msg3 = `No método *Pudim sem Forno*, você terá acesso a:\n✅ São 30 receitas super testadas e adoradas pelos clientes!\n\n*Bônus Especial:*\n✅ 11 caldas irresistíveis para você fazer e vender muito 🤩\n\nE tudo isso só por:\n👉 *R$ 10,00* reais no *PIX* 💠`;
       await sendWameText(phone, msg3);
       
       // Agenda a Mensagem 4 para daqui 5 segundos
