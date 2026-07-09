@@ -93,7 +93,7 @@ export async function POST(request: Request) {
 
         const msgDespedida = `Tudo bem, sem problemas.\n\nDesejo a você muito sucesso em sua jornada e fico à disposição, tá bom!\n\nUm abraço,\n\nAna`;
         await sendWameText(phone, msgDespedida);
-        await supabase.from('leads').update({ status: 'CANCELADO' }).eq('phone', phone);
+        await supabase.from('leads').update({ status: 'CANCELADO' }).eq('phone', dbPhone);
       } 
       // Mandou algo nada a ver
       else {
@@ -119,7 +119,7 @@ export async function POST(request: Request) {
         await sendWameDocument(phone, "https://xzysqeivbibosmryjsqm.supabase.co/storage/v1/object/public/arquivos-bot/Caldas%20que%20Vendem.pdf", "Caldas que Vendem.pdf");
 
         // Conclui o Funil
-        await supabase.from('leads').update({ status: 'CONCLUIDO' }).eq('phone', phone);
+        await supabase.from('leads').update({ status: 'CONCLUIDO' }).eq('phone', dbPhone);
       } else {
         // Recebeu só texto
         const msgErroComp = `Perfeito 😊\n\nAssim que você enviar uma imagem ou um PDF do comprovante eu libero imediatamente o restante do material.`;
