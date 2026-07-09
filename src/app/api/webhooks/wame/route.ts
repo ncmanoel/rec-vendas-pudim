@@ -58,8 +58,13 @@ export async function POST(request: Request) {
     // ETAPA 1: Aguardando resposta (1 para SIM, 2 para NÃO)
     // -------------------------------------------------------------
     if (status === 'AGUARDANDO_RESPOSTA_1_2') {
-      // Se ele mandou 1, sim, aceito, quero
-      if (normalizedText === '1' || normalizedText === 'sim' || normalizedText === 'quero') {
+      // Reconhecimento inteligente de intenção
+      // Verifica primeiro se é um NÃO
+      const isNao = normalizedText === '2' || /\b(n[ãa]o|nunca|jamais|deixa pra l[aá]|cancelar)\b/.test(normalizedText);
+      // Se não for NÃO, verifica se é um SIM (assim evita que "não quero" caia no "quero")
+      const isSim = !isNao && (normalizedText === '1' || /\b(sim|quero|claro|pode|manda|com certeza|bora)\b/.test(normalizedText));
+
+      if (isSim) {
         
         // Cancela o lembrete de 24h que estava agendado!
         if (qstash_reminder_id) {
@@ -80,7 +85,7 @@ export async function POST(request: Request) {
 
       } 
       // Se ele mandou 2, não, sair
-      else if (normalizedText === '2' || normalizedText === 'não' || normalizedText === 'nao') {
+      else if (isNao) {
         
         if (qstash_reminder_id) {
           try { await qstashClient.messages.delete(qstash_reminder_id); } catch (e) {}
