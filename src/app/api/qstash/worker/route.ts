@@ -121,7 +121,7 @@ export async function POST(request: Request) {
       await supabase.from('leads').update({ qstash_reminder_id: messageId, reminder_count: 1 }).eq('phone', phone);
     }
     else if (action === 'REMINDER_2_RECEIPT') {
-      const lembrete = `Olá!\n\nEstou passando só para conferir se conseguiu fazer o pagamento. 😊\n\nSe já enviou o Pix, pode só me encaminhar o comprovante aqui por gentileza, que já libero o restante do material. 🍮\n\nSe tiver alguma dúvida ou dificuldade para concluir, me avisa, tá bem?\n\nEstou aqui pra te ajudar! 💛`;
+      const lembrete = `Oi ${firstName}! Vi que você gerou o Pix ontem mas não me mandou o comprovante. Deu algum erro no aplicativo do seu banco?\n\nSe você precisar de mais um tempinho ou de alguma ajuda pra finalizar, é só me falar!\n\nEstou guardando a sua cópia do material aqui comigo. 💛`;
       await sendWameText(phone, lembrete);
       await supabase.from('leads').update({ reminder_count: 2 }).eq('phone', phone);
     }
