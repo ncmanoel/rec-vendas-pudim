@@ -21,8 +21,12 @@ export async function POST(request: Request) {
     const email = payload.customer.email || '';
     const productName = payload.lostSaleData?.Product?.Name || payload.items?.[0]?.name || 'Produto';
 
-    // 2. Tratar o telefone (Adicionar 55 se for do Brasil e não tiver)
+    // 2. Tratar o telefone
     let phone = rawPhone.replace(/\D/g, ''); // Remove tudo que não for número
+    // Remove o zero à esquerda do DDD se o usuário digitou (ex: 041988034297)
+    if (phone.startsWith('0') && (phone.length === 11 || phone.length === 12)) {
+      phone = phone.substring(1);
+    }
     if (phone.length === 10 || phone.length === 11) {
       phone = `55${phone}`;
     }
@@ -60,8 +64,9 @@ export async function POST(request: Request) {
     
     const baseUrl = process.env.NEXT_PUBLIC_APP_URL || 'https://sua-url-na-vercel.vercel.app';
     
-    if (payload.event_name === 'Make_AguardandoPagamento' && payload.payment_method === 'pix') {
-      const pixCode = payload.charge?.pix_data?.pix_qr_code;
+    const pixCode = payload.charge?.pix_data?.pix_qr_code;
+    
+    if (payload.event_name === 'Make_AguardandoPagamento' && payload.payment_method === 'pix' && pixCode) {
       
       await qstashClient.publishJSON({
         url: `${baseUrl}/api/qstash/worker`,

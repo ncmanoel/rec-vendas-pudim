@@ -82,6 +82,9 @@ export async function POST(request: Request) {
           body: { action: 'SEND_PIX_SEQUENCE', phone: dbPhone, firstName },
           delay: '5s'
         });
+        
+        // Atualiza o status instantaneamente para evitar conflito se o usuário enviar o comprovante muito rápido
+        await supabase.from('leads').update({ status: 'AGUARDANDO_COMPROVANTE' }).eq('phone', dbPhone);
 
       } 
       // Se ele mandou 2, não, sair
