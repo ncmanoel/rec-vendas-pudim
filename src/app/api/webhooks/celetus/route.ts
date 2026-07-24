@@ -19,7 +19,7 @@ export async function POST(request: Request) {
     const rawPhone = payload.customer.phone;
     const fullName = payload.customer.name || 'Cliente';
     const email = payload.customer.email || '';
-    const productName = payload.lostSaleData?.Product?.Name || 'Produto';
+    const productName = payload.lostSaleData?.Product?.Name || payload.items?.[0]?.name || 'Produto';
 
     // 2. Tratar o telefone (Adicionar 55 se for do Brasil e não tiver)
     let phone = rawPhone.replace(/\D/g, ''); // Remove tudo que não for número
@@ -57,22 +57,35 @@ export async function POST(request: Request) {
 
     // 5. Se inseriu com sucesso, é um Lead Novo! 
     // Vamos chamar o QStash para disparar a primeira mensagem agora.
-    // Usaremos nosso próprio endpoint "worker" que vai gerenciar as pausas.
     
-    // Opcional: Pegar a URL base da aplicação
     const baseUrl = process.env.NEXT_PUBLIC_APP_URL || 'https://sua-url-na-vercel.vercel.app';
     
-    await qstashClient.publishJSON({
-      url: `${baseUrl}/api/qstash/worker`,
-      body: {
-        action: 'START_FUNNEL',
-        phone: phone,
-        firstName: firstName,
-        productName: productName
-      },
-    });
-
-    console.log(`[Celetus Webhook] Novo lead cadastrado e funil iniciado para: ${phone}`);
+    if (payload.event_name === 'Make_AguardandoPagamento' && payload.payment_method === 'pix') {
+      const pixCode = payload.charge?.pix_data?.pix_qr_code;
+      
+      await qstashClient.publishJSON({
+        url: `${baseUrl}/api/qstash/worker`,
+        body: {
+          action: 'START_PIX_FUNNEL',
+          phone: phone,
+          firstName: firstName,
+          productName: productName,
+          pixCode: pixCode
+        },
+      });
+      console.log(`[Celetus Webhook] Novo lead cadastrado e PIX funil iniciado para: ${phone}`);
+    } else {
+      await qstashClient.publishJSON({
+        url: `${baseUrl}/api/qstash/worker`,
+        body: {
+          action: 'START_FUNNEL',
+          phone: phone,
+          firstName: firstName,
+          productName: productName
+        },
+      });
+      console.log(`[Celetus Webhook] Novo lead cadastrado e funil inicial iniciado para: ${phone}`);
+    }
     return NextResponse.json({ success: true, message: 'Lead processado com sucesso' }, { status: 200 });
 
   } catch (error) {

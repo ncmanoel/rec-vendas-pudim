@@ -7,11 +7,31 @@ import { sendWameText, sendWameAudio, sendWameImage, sendWameDocument } from '@/
 export async function POST(request: Request) {
   try {
     const payload = await request.json();
-    const { action, phone, firstName, productName } = payload;
+    const { action, phone, firstName, productName, pixCode } = payload;
 
     console.log(`[Worker] Executando ação: ${action} para o número: ${phone}`);
 
-    if (action === 'START_FUNNEL') {
+    if (action === 'START_PIX_FUNNEL') {
+      const msgPix = `Oi ${firstName}! Vi que você gerou o Pix para o ${productName}! 🎉\n\nPara facilitar, vou deixar o código Copia e Cola aqui embaixo pra você:`;
+      await sendWameText(phone, msgPix);
+      
+      await scheduleNextStep(phone, 'SEND_PIX_CODE_ONLY', 3, { firstName, pixCode });
+    }
+    else if (action === 'SEND_PIX_CODE_ONLY') {
+      await sendWameText(phone, pixCode);
+      
+      await scheduleNextStep(phone, 'SEND_PIX_INSTRUCTION', 4, { firstName });
+    }
+    else if (action === 'SEND_PIX_INSTRUCTION') {
+      const msgInstruction = `Assim que você fizer o pagamento, me manda o comprovante aqui (uma foto ou PDF) para eu liberar o seu material imediatamente! 💛`;
+      await sendWameText(phone, msgInstruction);
+      
+      await supabase.from('leads').update({ status: 'AGUARDANDO_COMPROVANTE' }).eq('phone', phone);
+      
+      const { messageId } = await scheduleNextStep(phone, 'REMINDER_1_RECEIPT', 60 * 60, { firstName });
+      await supabase.from('leads').update({ qstash_reminder_id: messageId }).eq('phone', phone);
+    }
+    else if (action === 'START_FUNNEL') {
       // 1. Mensagem 1 - Imediata
       await sendWameText(phone, `Oi, ${firstName}! Espero que esteja tudo bem! 💛`);
       
