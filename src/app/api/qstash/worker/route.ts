@@ -18,7 +18,8 @@ export async function POST(request: Request) {
       await scheduleNextStep(phone, 'SEND_PIX_CODE_ONLY', 3, { firstName, pixCode });
     }
     else if (action === 'SEND_PIX_CODE_ONLY') {
-      await sendWameText(phone, pixCode);
+      const formattedPixCode = `\`\`\`${pixCode}\`\`\``;
+      await sendWameText(phone, formattedPixCode);
       
       await scheduleNextStep(phone, 'SEND_PIX_INSTRUCTION', 4, { firstName });
     }
