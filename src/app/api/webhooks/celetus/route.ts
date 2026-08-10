@@ -61,36 +61,27 @@ export async function POST(request: Request) {
 
     // 5. Se inseriu com sucesso, é um Lead Novo! 
     // Vamos chamar o QStash para disparar a primeira mensagem agora.
-    
     const baseUrl = process.env.NEXT_PUBLIC_APP_URL || 'https://sua-url-na-vercel.vercel.app';
     
-    const pixCode = payload.charge?.pix_data?.pix_qr_code;
+    // Temporariamente (pedido de 10/08): Todos recebem o fluxo completo de abandono (START_FUNNEL)
+    // independentemente de ser abandono ou boleto/pix gerado.
+    const actionToTrigger = 'START_FUNNEL';
     
-    if (payload.event_name === 'Make_AguardandoPagamento' && payload.payment_method === 'pix' && pixCode) {
-      
-      await qstashClient.publishJSON({
-        url: `${baseUrl}/api/qstash/worker`,
-        body: {
-          action: 'START_PIX_FUNNEL',
-          phone: phone,
-          firstName: firstName,
-          productName: productName,
-          pixCode: pixCode
-        },
-      });
-      console.log(`[Celetus Webhook] Novo lead cadastrado e PIX funil iniciado para: ${phone}`);
-    } else {
-      await qstashClient.publishJSON({
-        url: `${baseUrl}/api/qstash/worker`,
-        body: {
-          action: 'START_FUNNEL',
-          phone: phone,
-          firstName: firstName,
-          productName: productName
-        },
-      });
-      console.log(`[Celetus Webhook] Novo lead cadastrado e funil inicial iniciado para: ${phone}`);
-    }
+    // Extraímos o pixCode caso no futuro queira voltar a usar
+    const pixCode = payload.charge?.pix_data?.pix_qr_code;
+
+    await qstashClient.publishJSON({
+      url: `${baseUrl}/api/qstash/worker`,
+      body: {
+        action: actionToTrigger,
+        phone: phone,
+        firstName: firstName,
+        productName: productName,
+        pixCode: pixCode
+      },
+    });
+
+    console.log(`[Celetus Webhook] Novo lead cadastrado e funil iniciado para: ${phone}`);
     return NextResponse.json({ success: true, message: 'Lead processado com sucesso' }, { status: 200 });
 
   } catch (error) {

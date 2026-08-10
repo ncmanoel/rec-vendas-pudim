@@ -1,0 +1,1 @@
+[{"phone":"5541988034297","name":"Ney","email":"","product_name":"Receitas de Pudim sem Forno","status":"AGUARDANDO_COMPROVANTE","qstash_reminder_id":"msg_7YoJxFpwkEy6sUx4vpXsLXHkZGRTsSzgyyAej2LPetvEkYGRMhp5v","reminder_count":0,"created_at":"2026-08-10T21:52:09.951578+00:00","updated_at":"2026-08-10T21:52:18.938527+00:00"}]
