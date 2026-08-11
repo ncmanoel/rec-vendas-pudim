@@ -33,6 +33,34 @@ export async function POST(request: Request) {
 
     // 3. Pegar apenas o primeiro nome
     const firstName = fullName.split(' ')[0];
+    const eventName = payload.event_name;
+
+    // NOVIDADE: Cancelamento de fluxo se a venda for aprovada (Pix pago, Cartão aprovado, etc)
+    if (eventName === 'Make_Aprovada' || eventName === 'Compra aprovada' || payload.status === 'approved' || payload.status === 'Pago' || eventName === 'Make_Aprovadas') {
+      console.log(`[Celetus Webhook] Recebido aviso de pagamento APROVADO para: ${phone}`);
+      
+      // Busca o lead no Supabase
+      const { data: leadData } = await supabase.from('leads').select('qstash_reminder_id, status').eq('phone', phone).single();
+      
+      if (leadData) {
+        // Se houver uma mensagem agendada no QStash, vamos cancelar
+        if (leadData.qstash_reminder_id) {
+          try {
+            await qstashClient.messages.delete(leadData.qstash_reminder_id);
+            console.log(`[Celetus Webhook] Mensagem agendada cancelada no QStash para: ${phone}`);
+          } catch (e) {
+            console.error(`[Celetus Webhook] Erro ao tentar cancelar mensagem no QStash:`, e);
+          }
+        }
+        
+        // Atualiza o status para CONCLUIDO para travar novos envios
+        await supabase.from('leads').update({ status: 'CONCLUIDO' }).eq('phone', phone);
+        return NextResponse.json({ success: true, message: 'Pagamento reconhecido. Funil cancelado.' }, { status: 200 });
+      } else {
+        // O lead pagou tão rápido (ou comprou direto) que nem entrou no funil de abandono
+        return NextResponse.json({ success: true, message: 'Pagamento aprovado, mas lead não estava no funil.' }, { status: 200 });
+      }
+    }
 
     // 4. Inserir no Supabase (Isso garante a regra de "Não reiniciar o fluxo para o mesmo telefone")
     // Como a coluna phone é PRIMARY KEY, se tentar inserir um repetido, vai dar erro, o que é ótimo!
