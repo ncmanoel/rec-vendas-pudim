@@ -61,3 +61,21 @@ export async function sendWameDocument(to: string, documentUrl: string, fileName
   }
   return response.json();
 }
+
+export async function sendWamePresence(to: string, status: string) {
+  const url = `${WAME_API_URL}/${WAME_API_TOKEN}/message/presence`;
+  try {
+    const response = await fetch(url, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ to, status }),
+    });
+    
+    if (!response.ok) {
+      console.error('[Wame API] Erro ao enviar presence', await response.text());
+    }
+    // We don't return JSON to avoid crashing if response is empty
+  } catch (error) {
+    console.error('[Wame API] Exceção ao enviar presence', error);
+  }
+}

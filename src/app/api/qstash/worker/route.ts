@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server';
 import { supabase } from '@/lib/supabase';
 import { qstashClient } from '@/lib/qstash';
-import { sendWameText, sendWameAudio, sendWameImage, sendWameDocument } from '@/lib/wame';
+import { sendWameText, sendWameAudio, sendWameImage, sendWameDocument, sendWamePresence } from '@/lib/wame';
 
 // O QStash envia um POST para cá quando for a hora de processar uma tarefa
 export async function POST(request: Request) {
@@ -33,6 +33,12 @@ export async function POST(request: Request) {
       await supabase.from('leads').update({ qstash_reminder_id: messageId }).eq('phone', phone);
     }
     else if (action === 'START_FUNNEL') {
+      // 0. "Acorda" o chat no servidor do WhatsApp para evitar que a API engasgue na primeira mensagem
+      await sendWamePresence(phone, 'composing');
+      
+      // Aguarda 2 segundos na Vercel para dar tempo do Wame processar a abertura do chat
+      await new Promise(resolve => setTimeout(resolve, 2000));
+
       // 1. Mensagem 1 - Imediata
       await sendWameText(phone, `Oi, ${firstName}! Espero que esteja tudo bem! 💛`);
       
