@@ -75,7 +75,7 @@ export async function POST(request: Request) {
         }
 
         // Manda Mensagem 8
-        const msg8 = `Parabéns pela sua postura! 🎉\nA Chave Pix para pagamento é:\n*CPF:* 83647139904\n*Nome:* Ney Carlos Manoel (meu marido 🥰)\n*Valor:* R$ 10,00`;
+        const msg8 = `{Parabéns pela sua postura! 🎉|Que atitude incrível! 🥰|Muito obrigada pela honestidade! 💛}\nA Chave Pix para pagamento é:\n*CPF:* 83647139904\n*Nome:* Ney Carlos Manoel (meu marido 🥰)\n*Valor:* R$ 10,00`;
         await sendWameText(phone, msg8);
 
         // Agenda Msg 9, 10, 11 (Pix e Arquivo 1)
@@ -97,7 +97,7 @@ export async function POST(request: Request) {
           try { await qstashClient.messages.delete(qstash_reminder_id); } catch (e) {}
         }
 
-        const msgDespedida = `Tudo bem, sem problemas.\n\nDesejo a você muito sucesso em sua jornada e fico à disposição, tá bom!\n\nUm abraço,\n\nAna`;
+        const msgDespedida = `{Tudo bem|Sem problemas|Compreendo}, sem problemas.\n\nDesejo a você muito sucesso em sua jornada e fico à disposição, tá bom!\n\n{Um abraço|Um beijo|Até mais},\n\nAna`;
         await sendWameText(phone, msgDespedida);
         await supabase.from('leads').update({ status: 'CANCELADO' }).eq('phone', dbPhone);
       } 
@@ -118,7 +118,7 @@ export async function POST(request: Request) {
           try { await qstashClient.messages.delete(qstash_reminder_id); } catch (e) {}
         }
 
-        const msg12 = `Parabéns pela sua decisão!\n\nSegue seu guia com as *Caldas que mais Vendem*!\n\nDesejo muito sucesso em sua operação e fico à disposição!\n\nCom carinho,\n*Ana*`;
+        const msg12 = `{Parabéns pela sua decisão!|Que maravilha!|Perfeito!}\n\nSegue seu guia com as *Caldas que mais Vendem*!\n\nDesejo muito sucesso em sua operação e fico à disposição!\n\n{Com carinho|Um abraço|Sucesso},\n*Ana*`;
         await sendWameText(phone, msg12);
         
         // Envia Material 2

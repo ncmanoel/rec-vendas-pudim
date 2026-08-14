@@ -12,7 +12,7 @@ export async function POST(request: Request) {
     console.log(`[Worker] Executando ação: ${action} para o número: ${phone}`);
 
     if (action === 'START_PIX_FUNNEL') {
-      const msgPix = `Oi ${firstName}! Vi que você gerou o Pix para o ${productName}! 🎉\n\nPara facilitar, vou deixar o código Copia e Cola aqui embaixo pra você:`;
+      const msgPix = `{Oi|Olá|Opa} ${firstName}! Vi que você gerou o Pix para o ${productName}! {🎉|🥳|🚀}\n\nPara facilitar, vou deixar o código Copia e Cola aqui embaixo pra você:`;
       await sendWameText(phone, msgPix);
       
       await scheduleNextStep(phone, 'SEND_PIX_CODE_ONLY', 3, { firstName, pixCode });
@@ -24,7 +24,7 @@ export async function POST(request: Request) {
       await scheduleNextStep(phone, 'SEND_PIX_INSTRUCTION', 4, { firstName });
     }
     else if (action === 'SEND_PIX_INSTRUCTION') {
-      const msgInstruction = `Assim que você fizer o pagamento, me manda o comprovante aqui (uma foto ou PDF) para eu liberar o seu material imediatamente! 💛`;
+      const msgInstruction = `{Assim que|Logo que|Quando} você fizer o pagamento, me manda o comprovante aqui (uma foto ou PDF) para eu {liberar|enviar|disponibilizar} o seu material imediatamente! {💛|🥰|✨}`;
       await sendWameText(phone, msgInstruction);
       
       await supabase.from('leads').update({ status: 'AGUARDANDO_COMPROVANTE' }).eq('phone', phone);
@@ -41,7 +41,7 @@ export async function POST(request: Request) {
       await new Promise(resolve => setTimeout(resolve, 2000));
 
       // 1. Mensagem 1 - Imediata
-      await sendWameText(phone, `Oi, ${firstName}! Espero que esteja tudo bem! 💛`);
+      await sendWameText(phone, `{Oi|Olá|Oie}, ${firstName}! {Espero que esteja tudo bem|Tudo bem com você?|Como você está?} {💛|🥰|✨}`);
       
       // 2. Agenda a Mensagem 2 (Áudio) para daqui 5 segundos
       await scheduleNextStep(phone, 'SEND_MSG_2_AUDIO', 5, { firstName, productName });
@@ -53,14 +53,14 @@ export async function POST(request: Request) {
       await scheduleNextStep(phone, 'SEND_MSG_3_OFFER', 5, { firstName, productName });
     }
     else if (action === 'SEND_MSG_3_OFFER') {
-      const msg3 = `No método *Pudim sem Forno*, você terá acesso a:\n✅ São 30 receitas super testadas e adoradas pelos clientes!\n\n*Bônus Especial:*\n✅ 11 caldas irresistíveis para você fazer e vender muito 🤩\n\nE tudo isso só por:\n👉 *R$ 10,00* reais no *PIX* 💠`;
+      const msg3 = `No método *Pudim sem Forno*, você terá acesso a:\n✅ São 30 receitas super testadas e adoradas pelos clientes!\n\n*{Bônus Especial|Presente Especial|Extra}:*\n✅ 11 caldas irresistíveis para você fazer e vender muito {🤩|😍|🤑}\n\nE tudo isso só por:\n👉 *R$ 10,00* reais no *PIX* {💠|💰|💸}`;
       await sendWameText(phone, msg3);
       
       // Agenda a Mensagem 4 para daqui 5 segundos
       await scheduleNextStep(phone, 'SEND_MSG_4_TRUST', 5, { firstName, productName });
     }
     else if (action === 'SEND_MSG_4_TRUST') {
-      const msg4 = `O melhor?\nEu *acredito e confio* em você!\n*Vou te enviar* o PDF aqui no WhatsApp agora e você *faz o Pix depois*, combinado?\nTenho certeza de que vai amar!`;
+      const msg4 = `O melhor?\nEu *acredito e confio* em você!\n*Vou te enviar* o PDF aqui no WhatsApp agora e você *faz o Pix depois*, {combinado|fechado|pode ser}?\nTenho certeza de que vai {amar|gostar muito|adorar}!`;
       await sendWameText(phone, msg4);
       
       // Agenda a Mensagem 5 (Imagem) para daqui 3 segundos
@@ -73,7 +73,7 @@ export async function POST(request: Request) {
       await scheduleNextStep(phone, 'SEND_MSG_6_QUESTION', 3, { firstName, productName });
     }
     else if (action === 'SEND_MSG_6_QUESTION') {
-      const msg6 = `Posso te mandar o Material das Caldas?\nPara *Sim* digite 1\nPara *Não* digite 2`;
+      const msg6 = `{Posso|Eu posso} te mandar o Material das Caldas?\nPara *Sim* digite 1\nPara *Não* digite 2`;
       await sendWameText(phone, msg6);
       
       // Atualiza o estado no Supabase para AGUARDANDO_RESPOSTA_1_2
@@ -96,7 +96,7 @@ export async function POST(request: Request) {
       await scheduleNextStep(phone, 'SEND_MSG_11_RECEIPT', 6, { firstName });
     }
     else if (action === 'SEND_MSG_11_RECEIPT') {
-      const msg11 = `${firstName}, fico muito feliz que tenha decidido acessar o meu material.\n\nAssim que você realizar o pagamento é só me encaminhar o comprovante por aqui que já *libero o restante do conteúdo*, tá bem? 🍮\n\nTenho certeza que esse material vai te ajudar muito na sua jornada! 💛`;
+      const msg11 = `${firstName}, fico muito feliz que tenha decidido acessar o {meu material|nosso conteúdo}.\n\nAssim que você realizar o pagamento é só me {encaminhar|mandar} o comprovante por aqui que já *libero o restante do conteúdo*, tá bem? 🍮\n\nTenho certeza que esse material vai te {ajudar muito na sua jornada|trazer ótimos resultados}! {💛|✨}`;
       await sendWameText(phone, msg11);
       
       // Atualiza o estado para aguardar o comprovante
@@ -110,26 +110,26 @@ export async function POST(request: Request) {
     }
     // Lógica para envio real dos lembretes (quando der o tempo do QStash)
     else if (action === 'REMINDER_1_QUESTION') {
-      await sendWameText(phone, `Olá ${firstName}, ainda tem interesse?`);
+      await sendWameText(phone, `{Olá|Oi|Oie} ${firstName}, ainda tem interesse?`);
       
       // Agenda o segundo lembrete para 24h
       const { messageId } = await scheduleNextStep(phone, 'REMINDER_2_QUESTION', 24 * 60 * 60, { firstName });
       await supabase.from('leads').update({ qstash_reminder_id: messageId, reminder_count: 1 }).eq('phone', phone);
     }
     else if (action === 'REMINDER_2_QUESTION') {
-      const lembrete = `Olá ${firstName}...\n\nPassando pra confirmar se posso te enviar o Livro agora e contar com a sua Honestidade e você paga depois?\n\nPara Sim digite 1\nPara Não digite 2`;
+      const lembrete = `{Olá|Oi|Oie} ${firstName}...\n\nPassando pra confirmar se posso te enviar o Livro agora e contar com a sua Honestidade e você paga depois?\n\nPara Sim digite 1\nPara Não digite 2`;
       await sendWameText(phone, lembrete);
       await supabase.from('leads').update({ reminder_count: 2 }).eq('phone', phone);
     }
     else if (action === 'REMINDER_1_RECEIPT') {
-      const lembrete = `Olá!\n\nEstou passando só para conferir se conseguiu fazer o pagamento. 😊\n\nSe já enviou o Pix, pode só me encaminhar o comprovante aqui por gentileza, que já libero o restante do material. 🍮\n\nSe tiver alguma dúvida ou dificuldade para concluir, me avisa, tá bem?\n\nEstou aqui pra te ajudar! 💛`;
+      const lembrete = `{Olá|Oi|Oie}!\n\nEstou passando só para conferir se conseguiu fazer o pagamento. {😊|💛|✨}\n\nSe já enviou o Pix, pode só me encaminhar o comprovante aqui por gentileza, que já libero o restante do material. 🍮\n\nSe tiver alguma dúvida ou dificuldade para concluir, me avisa, tá bem?\n\nEstou aqui pra te ajudar! {💛|✨}`;
       await sendWameText(phone, lembrete);
       
       const { messageId } = await scheduleNextStep(phone, 'REMINDER_2_RECEIPT', 24 * 60 * 60, { firstName });
       await supabase.from('leads').update({ qstash_reminder_id: messageId, reminder_count: 1 }).eq('phone', phone);
     }
     else if (action === 'REMINDER_2_RECEIPT') {
-      const lembrete = `Oi ${firstName}! Vi que você gerou o Pix ontem mas não me mandou o comprovante. Deu algum erro no aplicativo do seu banco?\n\nSe você precisar de mais um tempinho ou de alguma ajuda pra finalizar, é só me falar!\n\nEstou guardando a sua cópia do material aqui comigo. 💛`;
+      const lembrete = `{Oi|Olá|Oie} ${firstName}! Vi que você gerou o Pix ontem mas não me mandou o comprovante. Deu algum erro no aplicativo do seu banco?\n\nSe você precisar de mais um tempinho ou de alguma ajuda pra finalizar, é só me falar!\n\nEstou guardando a sua cópia do material aqui comigo. {💛|🥰|✨}`;
       await sendWameText(phone, lembrete);
       await supabase.from('leads').update({ reminder_count: 2 }).eq('phone', phone);
     }

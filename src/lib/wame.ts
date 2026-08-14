@@ -1,12 +1,14 @@
 const WAME_API_URL = process.env.WAME_API_URL || 'https://us.api-wa.me';
 const WAME_API_TOKEN = process.env.WAME_API_TOKEN || '';
+import { processSpintax } from './spintax';
 
 export async function sendWameText(to: string, text: string) {
+  const final_text = processSpintax(text);
   const url = `${WAME_API_URL}/${WAME_API_TOKEN}/message/text`;
   const response = await fetch(url, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ to, text }),
+    body: JSON.stringify({ to, text: final_text }),
   });
   
   if (!response.ok) {
