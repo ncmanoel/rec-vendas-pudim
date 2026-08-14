@@ -33,8 +33,9 @@ export async function POST(request: Request) {
       await supabase.from('leads').update({ qstash_reminder_id: messageId }).eq('phone', phone);
     }
     else if (action === 'START_FUNNEL') {
-      // 0. "Acorda" o chat no servidor do WhatsApp para evitar que a API engasgue na primeira mensagem
-      await sendWamePresence(phone, 'composing');
+      // 0. "Acorda" o chat no servidor do WhatsApp enviando um emoji. 
+      // Se a API engasgar, o emoji é sacrificado. Se funcionar, o cliente recebe um emoji natural antes do "Oi".
+      await sendWameText(phone, '👋');
       
       // Aguarda 2 segundos na Vercel para dar tempo do Wame processar a abertura do chat
       await new Promise(resolve => setTimeout(resolve, 2000));
