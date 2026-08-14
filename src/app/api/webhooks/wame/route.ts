@@ -16,8 +16,11 @@ export async function POST(request: Request) {
     const fromMe = payload.data?.me || payload.data?.key?.fromMe || false;
     if (fromMe) return NextResponse.json({ success: true }); // Ignora mensagens enviadas pelo próprio robô
 
-    let phone = payload.data?.phoneNumber || '';
+    let phone = payload.data?.phoneNumber || payload.data?.key?.remoteJid || payload.data?.remoteJid || payload.phoneNumber || '';
     if (!phone) return NextResponse.json({ success: true });
+    
+    // Filtra apenas os números, pois pode vir com @s.whatsapp.net ou sinais
+    phone = phone.replace(/\D/g, '');
 
     // Extrair o texto recebido
     const textMessage = 
