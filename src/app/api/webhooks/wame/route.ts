@@ -118,7 +118,7 @@ export async function POST(request: Request) {
         }
         
         // 1. Agradece e envia o material original que a pessoa comprou
-        const msg12 = `{Parabéns pela sua decisão!|Que maravilha!|Perfeito!} Comprovante recebido! Conforme prometido, estou enviando o Guia de Caldas logo abaixo. ☝️`;
+        const msg12 = `{Parabéns pela sua decisão!|Que maravilha!|Perfeito!} Comprovante recebido! Conforme prometido, estou enviando o Guia de Caldas logo abaixo. 👇`;
         await sendWameText(phone, msg12);
         await sendWameDocument(phone, "https://xzysqeivbibosmryjsqm.supabase.co/storage/v1/object/public/arquivos-bot/Caldas%20que%20Vendem.pdf", "Caldas que Vendem.pdf");
 
