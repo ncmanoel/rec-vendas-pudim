@@ -53,8 +53,8 @@ export async function POST(request: Request) {
           }
         }
         
-        // Atualiza o status para CONCLUIDO para travar novos envios
-        await supabase.from('leads').update({ status: 'CONCLUIDO' }).eq('phone', phone);
+        // Atualiza o status para CONCLUIDO_CELETUS para travar novos envios e identificar a origem
+        await supabase.from('leads').update({ status: 'CONCLUIDO_CELETUS' }).eq('phone', phone);
         return NextResponse.json({ success: true, message: 'Pagamento reconhecido. Funil cancelado.' }, { status: 200 });
       } else {
         // O lead pagou tão rápido (ou comprou direto) que nem entrou no funil de abandono
