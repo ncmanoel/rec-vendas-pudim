@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import { supabase } from '@/lib/supabase';
 import { qstashClient } from '@/lib/qstash';
+import { sendWameText, sendWameDocument } from '@/lib/wame';
 
 export async function POST(request: Request) {
   try {
@@ -53,9 +54,39 @@ export async function POST(request: Request) {
           }
         }
         
-        // Atualiza o status para CONCLUIDO_CELETUS para travar novos envios e identificar a origem
-        await supabase.from('leads').update({ status: 'CONCLUIDO_CELETUS' }).eq('phone', phone);
-        return NextResponse.json({ success: true, message: 'Pagamento reconhecido. Funil cancelado.' }, { status: 200 });
+        // Verifica se comprou o Order Bump baseado no totalPrice
+        const totalPrice = payload.commission?.totalPrice || parseFloat(payload.charge?.amount || "0");
+
+        if (totalPrice <= 10.00) {
+          console.log(`[Celetus Webhook] Lead aprovado SEM order bump (Total: ${totalPrice}). Iniciando Upsell via WhatsApp para: ${phone}`);
+          
+          // 1. Envia os dois PDFs
+          await sendWameDocument(phone, "https://xzysqeivbibosmryjsqm.supabase.co/storage/v1/object/public/arquivos-bot/Receitas%20de%20Pudim%20Sem%20Forno.pdf", "Receitas de Pudim Sem Forno.pdf");
+          await new Promise(r => setTimeout(r, 2000));
+          
+          await sendWameDocument(phone, "https://xzysqeivbibosmryjsqm.supabase.co/storage/v1/object/public/arquivos-bot/Caldas%20que%20Vendem.pdf", "Caldas que Vendem.pdf");
+          await new Promise(r => setTimeout(r, 2000));
+          
+          // 2. Envia a mensagem de justificativa/bônus
+          const msg12 = `{Olá|Oi|Oie} ${firstName}! Parabéns pela compra do método. Como um bônus de agilidade, acabei de te enviar o seu material por aqui também para facilitar o seu acesso! ☝️`;
+          await sendWameText(phone, msg12);
+          await new Promise(r => setTimeout(r, 1500));
+          
+          // 3. Dispara o Upsell
+          const msgUpsell = `Aproveitando, deixa eu te fazer uma pergunta rápida...\n\nMuitas meninas não sabem calcular o preço das receitas e acabam perdendo dinheiro no final do mês.\n\nEu tenho o *Pack Lucratividade Garantida* (com Guias e Checklists) que resolve isso na hora. Ele custa originalmente *R$ 47,00*, mas como você acabou de se tornar aluna, posso liberar o acesso para você agora por apenas *+ R$ 11,90*.\n\nQuer aproveitar esse mega desconto e fazer um Pix de R$ 11,90 para levar o Pack também?\nDigite 1 para SIM\nDigite 2 para NÃO`;
+          await sendWameText(phone, msgUpsell);
+
+          // Atualiza status para o funil de Upsell
+          await supabase.from('leads').update({ status: 'AGUARDANDO_RESPOSTA_UPSELL' }).eq('phone', phone);
+          return NextResponse.json({ success: true, message: 'Upsell via WA disparado.' }, { status: 200 });
+
+        } else {
+          // Comprou com Order Bump (Valor > 10.00)
+          console.log(`[Celetus Webhook] Lead aprovado COM order bump (Total: ${totalPrice}). Apenas concluindo funil: ${phone}`);
+          // Atualiza o status para CONCLUIDO_CELETUS para travar novos envios e identificar a origem
+          await supabase.from('leads').update({ status: 'CONCLUIDO_CELETUS' }).eq('phone', phone);
+          return NextResponse.json({ success: true, message: 'Pagamento reconhecido. Funil cancelado.' }, { status: 200 });
+        }
       } else {
         // O lead pagou tão rápido (ou comprou direto) que nem entrou no funil de abandono
         return NextResponse.json({ success: true, message: 'Pagamento aprovado, mas lead não estava no funil.' }, { status: 200 });
