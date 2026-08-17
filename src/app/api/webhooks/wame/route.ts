@@ -118,9 +118,16 @@ export async function POST(request: Request) {
         }
         
         // 1. Agradece e envia o material original que a pessoa comprou
-        const msg12 = `{Parabéns pela sua decisão!|Que maravilha!|Perfeito!} Comprovante recebido! Conforme prometido, estou enviando o Guia de Caldas logo abaixo. 👇`;
-        await sendWameText(phone, msg12);
         await sendWameDocument(phone, "https://xzysqeivbibosmryjsqm.supabase.co/storage/v1/object/public/arquivos-bot/Caldas%20que%20Vendem.pdf", "Caldas que Vendem.pdf");
+        
+        // Pausa breve para o WhatsApp entregar o arquivo antes do texto
+        await new Promise(r => setTimeout(r, 2000));
+
+        const msg12 = `{Parabéns pela sua decisão!|Que maravilha!|Perfeito!} Comprovante recebido! Conforme prometido, acabei de enviar o Guia de Caldas logo acima. ☝️`;
+        await sendWameText(phone, msg12);
+
+        // Mais uma pausa breve antes de mandar a oferta
+        await new Promise(r => setTimeout(r, 1500));
 
         // 2. Dispara o Upsell logo em seguida
         const msgUpsell = `Aproveitando, deixa eu te fazer uma pergunta rápida...\n\nMuitas meninas não sabem calcular o preço das receitas e acabam perdendo dinheiro no final do mês.\n\nEu tenho o *Pack Lucratividade Garantida* (com Guias e Checklists) que resolve isso na hora. Ele custa originalmente *R$ 47,00*, mas como você acabou de se tornar aluna, posso liberar o acesso para você agora por apenas *+ R$ 11,90*.\n\nQuer aproveitar esse mega desconto e fazer um Pix de R$ 11,90 para levar o Pack também?\nDigite 1 para SIM\nDigite 2 para NÃO`;
