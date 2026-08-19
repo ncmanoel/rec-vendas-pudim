@@ -72,8 +72,18 @@ export async function POST(request: Request) {
       const isNao = normalizedText === '2' || /\b(n[ãa]o|nunca|jamais|deixa pra l[aá]|cancelar)\b/.test(normalizedText);
       // Se não for NÃO, verifica se é um SIM (assim evita que "não quero" caia no "quero")
       const isSim = !isNao && (normalizedText === '1' || /\b(sim|quero|claro|pode|manda|com certeza|bora)\b/.test(normalizedText));
+      // NOVO: Verifica se o cliente está dizendo que já pagou/já fez o pix
+      const isJaPagou = /\b(j[aá] paguei|j[aá] fiz|j[aá] mandei|j[aá] enviei|paguei|fiz o pix|mandei o pix)\b/.test(normalizedText);
 
-      if (isSim) {
+      if (isJaPagou) {
+        if (qstash_reminder_id) {
+          try { await qstashClient.messages.delete(qstash_reminder_id); } catch (e) {}
+        }
+        const msgJaPagou = `{Que ótimo!|Maravilha!|Perfeito!} 🥰\n\nNesse caso, por favor me envie uma foto ou PDF do comprovante aqui mesmo para que eu possa localizar e liberar o seu material imediatamente!`;
+        await sendWameText(phone, msgJaPagou);
+        await supabase.from('leads').update({ status: 'AGUARDANDO_COMPROVANTE' }).eq('phone', dbPhone);
+      } 
+      else if (isSim) {
         
         // Cancela o lembrete de 24h que estava agendado!
         if (qstash_reminder_id) {
@@ -152,8 +162,14 @@ export async function POST(request: Request) {
     else if (status === 'AGUARDANDO_RESPOSTA_UPSELL') {
       const isNao = normalizedText === '2' || /\b(n[ãa]o|nunca|jamais|deixa pra l[aá]|cancelar)\b/.test(normalizedText);
       const isSim = !isNao && (normalizedText === '1' || /\b(sim|quero|claro|pode|manda|com certeza|bora)\b/.test(normalizedText));
+      const isJaPagou = /\b(j[aá] paguei|j[aá] fiz|j[aá] mandei|j[aá] enviei|paguei|fiz o pix|mandei o pix)\b/.test(normalizedText);
 
-      if (isSim) {
+      if (isJaPagou) {
+        const msgJaPagou = `{Que ótimo!|Maravilha!|Perfeito!} 🥰\n\nNesse caso, por favor me envie a foto ou PDF do comprovante aqui para que eu possa liberar o Pack imediatamente!`;
+        await sendWameText(phone, msgJaPagou);
+        await supabase.from('leads').update({ status: 'AGUARDANDO_COMPROVANTE_UPSELL' }).eq('phone', dbPhone);
+      }
+      else if (isSim) {
         const msgPixUpsell = `{Maravilha!|Excelente escolha!} 🎉\nA Chave Pix para o Pack é:\n*CPF:* 83647139904\n*Nome:* Ney Carlos Manoel\n*Valor:* R$ 11,90`;
         await sendWameText(phone, msgPixUpsell);
         await supabase.from('leads').update({ status: 'AGUARDANDO_COMPROVANTE_UPSELL' }).eq('phone', dbPhone);
@@ -188,8 +204,14 @@ export async function POST(request: Request) {
     else if (status === 'AGUARDANDO_RESPOSTA_DOWNSELL') {
       const isNao = normalizedText === '2' || /\b(n[ãa]o|nunca|jamais|deixa pra l[aá]|cancelar)\b/.test(normalizedText);
       const isSim = !isNao && (normalizedText === '1' || /\b(sim|quero|claro|pode|manda|com certeza|bora)\b/.test(normalizedText));
+      const isJaPagou = /\b(j[aá] paguei|j[aá] fiz|j[aá] mandei|j[aá] enviei|paguei|fiz o pix|mandei o pix)\b/.test(normalizedText);
 
-      if (isSim) {
+      if (isJaPagou) {
+        const msgJaPagou = `{Que ótimo!|Maravilha!|Perfeito!} 🥰\n\nNesse caso, por favor me envie a foto ou PDF do comprovante aqui para que eu possa liberar o Pack imediatamente!`;
+        await sendWameText(phone, msgJaPagou);
+        await supabase.from('leads').update({ status: 'AGUARDANDO_COMPROVANTE_DOWNSELL' }).eq('phone', dbPhone);
+      }
+      else if (isSim) {
         const msgPixDownsell = `{Que bom que decidiu aproveitar!|Excelente!} 🎉\nA Chave Pix para o Pack (com desconto) é:\n*CPF:* 83647139904\n*Nome:* Ney Carlos Manoel\n*Valor:* R$ 7,90`;
         await sendWameText(phone, msgPixDownsell);
         await supabase.from('leads').update({ status: 'AGUARDANDO_COMPROVANTE_DOWNSELL' }).eq('phone', dbPhone);
