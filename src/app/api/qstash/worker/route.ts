@@ -7,9 +7,33 @@ import { sendWameText, sendWameAudio, sendWameImage, sendWameDocument, sendWameP
 export async function POST(request: Request) {
   try {
     const payload = await request.json();
-    const { action, phone, firstName, productName, pixCode } = payload;
+    const phone = payload.phone;
+    const action = payload.action;
+    const firstName = payload.firstName || 'Cliente';
+    const productName = payload.productName;
+    const pixCode = payload.pixCode || '';
 
-    console.log(`[Worker] Executando ação: ${action} para o número: ${phone}`);
+    if (!phone || !action) {
+      return NextResponse.json({ error: 'Faltam parametros' }, { status: 400 });
+    }
+
+    console.log(`[Worker] Processando ação: ${action} para ${phone}`);
+
+    // Buscar o status atual do lead no banco ANTES de agir
+    const { data: lead } = await supabase.from('leads').select('status').eq('phone', phone).single();
+    
+    // Se o lead não existe, ignorar
+    if (!lead) {
+      return NextResponse.json({ success: true, reason: 'lead_not_found' });
+    }
+
+    // Se o lead já avançou para a compra, nós ignoramos qualquer ação agendada
+    const safeStatuses = ['AGUARDANDO_RESPOSTA_UPSELL', 'AGUARDANDO_COMPROVANTE_UPSELL', 'CONCLUIDO_UPSELL', 'CONCLUIDO_DOWNSELL', 'CONCLUIDO_RECUSOU_TUDO', 'CONCLUIDO_CELETUS', 'CONCLUIDO'];
+    
+    if (safeStatuses.includes(lead.status)) {
+      console.log(`[Worker] Abortando ação ${action} pois lead já está no status avançado: ${lead.status}`);
+      return NextResponse.json({ success: true, reason: 'lead_already_advanced' });
+    }
 
     if (action === 'START_PIX_FUNNEL') {
       const msgPix = `{Oi|Olá|Opa} ${firstName}! Vi que você gerou o Pix para o ${productName}! {🎉|🥳|🚀}\n\nPara facilitar, vou deixar o código Copia e Cola aqui embaixo pra você:`;

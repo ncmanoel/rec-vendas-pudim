@@ -37,6 +37,12 @@ export async function POST(request: Request) {
     // Extrair se tem mídia (imagem ou documento) para a etapa de comprovante
     const hasMedia = payload.data?.isMedia === true || payload.data?.urlMedia != null || !!payload.data?.fileBase64;
 
+    // Ignorar reações ou mensagens vazias sem mídia
+    if (!normalizedText && !hasMedia) {
+      console.log(`[Wame Webhook] Ignorando mensagem vazia/reação de ${phone}`);
+      return NextResponse.json({ success: true, reason: 'empty_or_reaction' });
+    }
+
     // 1. Buscar o Lead no banco de dados para ver em qual etapa ele está
     // Como o WhatsApp pode remover o 9o dígito (ex: manda 5541880... e nós salvamos 55419880...),
     // vamos buscar pelos últimos 8 dígitos do telefone para garantir que ache o lead.
