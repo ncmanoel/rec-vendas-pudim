@@ -133,6 +133,9 @@ export async function POST(request: Request) {
           try { await qstashClient.messages.delete(qstash_reminder_id); } catch (e) {}
         }
         
+        // Atualiza o status primeiro para garantir que não teremos problemas se o Vercel der timeout no meio dos delays
+        await supabase.from('leads').update({ status: 'AGUARDANDO_RESPOSTA_UPSELL' }).eq('phone', dbPhone);
+
         // 1. Agradece e envia o material original que a pessoa comprou
         await sendWameDocument(phone, "https://xzysqeivbibosmryjsqm.supabase.co/storage/v1/object/public/arquivos-bot/Caldas%20que%20Vendem.pdf", "Caldas que Vendem.pdf");
         
@@ -148,8 +151,6 @@ export async function POST(request: Request) {
         // 2. Dispara o Upsell logo em seguida
         const msgUpsell = `Aproveitando, deixa eu te fazer uma pergunta rápida...\n\nMuitas meninas têm dificuldade em calcular o preço das receitas e acabam perdendo dinheiro no final do mês.\n\nEu tenho o *Pack Lucratividade Garantida* (com Guias e Checklists) que resolve isso na hora. Ele custa originalmente *R$ 47,00*, mas como você acabou de se tornar aluna, posso liberar o acesso para você agora por apenas *+ R$ 11,90*.\n\nQuer aproveitar esse mega desconto e fazer um Pix de R$ 11,90 para levar o Pack também?\nDigite 1 para SIM\nDigite 2 para NÃO`;
         await sendWameText(phone, msgUpsell);
-
-        await supabase.from('leads').update({ status: 'AGUARDANDO_RESPOSTA_UPSELL' }).eq('phone', dbPhone);
       } else {
         const msgErroComp = `{Perfeito|Tudo bem} 😊\n\nAssim que você enviar uma imagem ou um PDF do comprovante eu libero imediatamente o restante do material.`;
         await sendWameText(phone, msgErroComp);
@@ -245,3 +246,5 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: 'Erro interno' }, { status: 500 });
   }
 }
+
+export const maxDuration = 60;

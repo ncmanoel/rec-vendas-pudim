@@ -60,6 +60,9 @@ export async function POST(request: Request) {
         if (totalPrice <= 10.00) {
           console.log(`[Celetus Webhook] Lead aprovado SEM order bump (Total: ${totalPrice}). Iniciando Upsell via WhatsApp para: ${phone}`);
           
+          // Atualiza o status primeiro para garantir que o cliente vá para a próxima etapa mesmo se o Vercel matar o script por timeout
+          await supabase.from('leads').update({ status: 'AGUARDANDO_RESPOSTA_UPSELL' }).eq('phone', phone);
+
           // 1. Envia os dois PDFs
           await sendWameDocument(phone, "https://xzysqeivbibosmryjsqm.supabase.co/storage/v1/object/public/arquivos-bot/Receitas%20de%20Pudim%20Sem%20Forno.pdf", "Receitas de Pudim Sem Forno.pdf");
           await new Promise(r => setTimeout(r, 2000));
@@ -76,8 +79,6 @@ export async function POST(request: Request) {
           const msgUpsell = `Aproveitando, deixa eu te fazer uma pergunta rápida...\n\nMuitas meninas têm dificuldade em calcular o preço das receitas e acabam perdendo dinheiro no final do mês.\n\nEu tenho o *Pack Lucratividade Garantida* (com Guias e Checklists) que resolve isso na hora. Ele custa originalmente *R$ 47,00*, mas como você acabou de se tornar aluna, posso liberar o acesso para você agora por apenas *+ R$ 11,90*.\n\nQuer aproveitar esse mega desconto e fazer um Pix de R$ 11,90 para levar o Pack também?\nDigite 1 para SIM\nDigite 2 para NÃO`;
           await sendWameText(phone, msgUpsell);
 
-          // Atualiza status para o funil de Upsell
-          await supabase.from('leads').update({ status: 'AGUARDANDO_RESPOSTA_UPSELL' }).eq('phone', phone);
           return NextResponse.json({ success: true, message: 'Upsell via WA disparado.' }, { status: 200 });
 
         } else {
@@ -148,3 +149,5 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: 'Erro interno no servidor' }, { status: 500 });
   }
 }
+
+export const maxDuration = 60;
