@@ -97,7 +97,7 @@ export async function POST(request: Request) {
       await scheduleNextStep(phone, 'SEND_MSG_6_QUESTION', 3, { firstName, productName });
     }
     else if (action === 'SEND_MSG_6_QUESTION') {
-      const msg6 = `{Posso|Eu posso} te mandar o Material das Caldas?\nPara *Sim* digite 1\nPara *Não* digite 2`;
+      const msg6 = `{Posso|Eu posso} te mandar o Material?\nPara *Sim* digite 1\nPara *Não* digite 2`;
       await sendWameText(phone, msg6);
       
       // Atualiza o estado no Supabase para AGUARDANDO_RESPOSTA_1_2
