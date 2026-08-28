@@ -123,9 +123,6 @@ export async function POST(request: Request) {
       const msg11 = `${firstName}, fico muito feliz que tenha decidido acessar o {meu material|nosso conteúdo}.\n\nAssim que você realizar o pagamento é só me {encaminhar|mandar} o comprovante por aqui que já *libero o restante do conteúdo*, tá bem? 🍮\n\nTenho certeza que esse material vai te {ajudar muito na sua jornada|trazer ótimos resultados}! {💛|✨}`;
       await sendWameText(phone, msg11);
       
-      // Atualiza o estado para aguardar o comprovante
-      await supabase.from('leads').update({ status: 'AGUARDANDO_COMPROVANTE' }).eq('phone', phone);
-      
       // Agenda o primeiro lembrete de comprovante para daqui 1 hora
       const { messageId } = await scheduleNextStep(phone, 'REMINDER_1_RECEIPT', 60 * 60, { firstName });
       
@@ -176,3 +173,5 @@ async function scheduleNextStep(phone: string, action: string, delaySeconds: num
   
   return res as any;
 }
+
+export const maxDuration = 60;

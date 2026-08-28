@@ -83,10 +83,23 @@ export async function POST(request: Request) {
 
         } else {
           // Comprou com Order Bump (Valor > 10.00)
-          console.log(`[Celetus Webhook] Lead aprovado COM order bump (Total: ${totalPrice}). Apenas concluindo funil: ${phone}`);
-          // Atualiza o status para CONCLUIDO_CELETUS para travar novos envios e identificar a origem
+          console.log(`[Celetus Webhook] Lead aprovado COM order bump (Total: ${totalPrice}). Enviando todos os materiais: ${phone}`);
+          
+          // Atualiza o status primeiro para garantir que o funil seja cancelado
           await supabase.from('leads').update({ status: 'CONCLUIDO_CELETUS' }).eq('phone', phone);
-          return NextResponse.json({ success: true, message: 'Pagamento reconhecido. Funil cancelado.' }, { status: 200 });
+          
+          // 1. Envia os dois PDFs
+          await sendWameDocument(phone, "https://xzysqeivbibosmryjsqm.supabase.co/storage/v1/object/public/arquivos-bot/Receitas%20de%20Pudim%20Sem%20Forno.pdf", "Receitas de Pudim Sem Forno.pdf");
+          await new Promise(r => setTimeout(r, 2000));
+          
+          await sendWameDocument(phone, "https://xzysqeivbibosmryjsqm.supabase.co/storage/v1/object/public/arquivos-bot/Caldas%20que%20Vendem.pdf", "Caldas que Vendem.pdf");
+          await new Promise(r => setTimeout(r, 2000));
+          
+          // 2. Envia a mensagem de bônus e o link do drive do Order Bump
+          const msgOrderBump = `{Olá|Oi|Oie} ${firstName}! Parabéns pela compra completa. Como um bônus de agilidade, acabei de te enviar os materiais em PDF por aqui também para facilitar o seu acesso! ☝️\n\nE como você aproveitou e levou o *Pack Lucratividade Garantida*, aqui está o link de acesso seguro ao seu Pack no Google Drive:\n👉 https://drive.google.com/drive/folders/1-yGlJKQX7_fluzDFWaj9wriB-EfhWvJd\n\nDesejo a você muito sucesso nas suas vendas! 💛`;
+          await sendWameText(phone, msgOrderBump);
+
+          return NextResponse.json({ success: true, message: 'Pagamento reconhecido e materiais do Order Bump enviados.' }, { status: 200 });
         }
       } else {
         // O lead pagou tão rápido (ou comprou direto) que nem entrou no funil de abandono
