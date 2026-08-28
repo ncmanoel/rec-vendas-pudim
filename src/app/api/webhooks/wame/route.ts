@@ -239,6 +239,16 @@ export async function POST(request: Request) {
         await sendWameText(phone, msgErroComp);
       }
     }
+    
+    // -------------------------------------------------------------
+    // ETAPA 7: Lead já concluiu o fluxo mas respondeu uma mensagem atrasada
+    // -------------------------------------------------------------
+    else if (status.startsWith('CONCLUIDO')) {
+      const isSimOrNao = normalizedText === '1' || normalizedText === '2' || /\b(sim|n[ãa]o)\b/.test(normalizedText);
+      if (isSimOrNao) {
+        await sendWameText(phone, `{Oie!|Olá!} 🥰 Você já garantiu e recebeu todo o seu material!\n\nDá uma olhadinha nas mensagens logo acima para acessar os PDFs e o material que te enviei. Se precisar de alguma ajuda com as receitas, estarei por aqui! 💛`);
+      }
+    }
 
     return NextResponse.json({ success: true });
   } catch (error) {
