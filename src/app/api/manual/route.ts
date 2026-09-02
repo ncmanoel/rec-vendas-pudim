@@ -13,6 +13,12 @@ export async function GET(req: Request) {
     const supabase = createClient(supabaseUrl, supabaseKey);
 
     const type = searchParams.get('type');
+    const customMsg = searchParams.get('msg');
+
+    if (customMsg) {
+      await sendWameText(phone, customMsg);
+      return NextResponse.json({ success: true, message: 'Custom msg sent' });
+    }
 
     if (type === 'upsell_reply') {
       const msg = `Oie! Tudo bem? 🥰\n\nEsse valor de R$ 11,90 é referente ao nosso *Pack Lucratividade Garantida* (que era aquela oferta especial no final da compra).\n\nEle é um material extra exclusivo com dicas de ouro, estratégias de vendas e os segredos para você transformar os pudins em uma verdadeira fonte de renda! 💰\n\nComo você já levou o material principal, esse Pack serve para te ajudar a lucrar muito mais rápido.\n\nSe quiser aproveitar, é só me mandar o comprovante aqui e eu já libero o link de acesso ao Pack, combinado?`;
