@@ -5,63 +5,87 @@ import { processSpintax } from './spintax';
 export async function sendWameText(to: string, text: string) {
   const final_text = processSpintax(text);
   const url = `${WAME_API_URL}/${WAME_API_TOKEN}/message/text`;
-  const response = await fetch(url, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ to, text: final_text }),
-  });
-  
-  if (!response.ok) {
-    console.error('[Wame API] Erro ao enviar texto', await response.text());
+  try {
+    const response = await fetch(url, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ to, text: final_text }),
+    });
+    const textBody = await response.text();
+    if (!response.ok) {
+      console.error('[Wame API] Erro ao enviar texto', textBody);
+      return null;
+    }
+    return JSON.parse(textBody);
+  } catch (e) {
+    console.error('[Wame API] Exception in sendWameText', e);
+    return null;
   }
-  return response.json();
 }
 
 export async function sendWameAudio(to: string, audioUrl: string) {
   const url = `${WAME_API_URL}/${WAME_API_TOKEN}/message/audio`;
-  const response = await fetch(url, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ to, url: audioUrl }),
-  });
-  
-  if (!response.ok) {
-    console.error('[Wame API] Erro ao enviar audio', await response.text());
+  try {
+    const response = await fetch(url, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ to, url: audioUrl }),
+    });
+    const textBody = await response.text();
+    if (!response.ok) {
+      console.error('[Wame API] Erro ao enviar audio', textBody);
+      return null;
+    }
+    return JSON.parse(textBody);
+  } catch (e) {
+    console.error('[Wame API] Exception in sendWameAudio', e);
+    return null;
   }
-  return response.json();
 }
 
 export async function sendWameImage(to: string, imageUrl: string, caption?: string) {
   const url = `${WAME_API_URL}/${WAME_API_TOKEN}/message/image`;
-  const response = await fetch(url, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ to, url: imageUrl, caption }),
-  });
-  
-  if (!response.ok) {
-    console.error('[Wame API] Erro ao enviar imagem', await response.text());
+  try {
+    const response = await fetch(url, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ to, url: imageUrl, caption }),
+    });
+    const textBody = await response.text();
+    if (!response.ok) {
+      console.error('[Wame API] Erro ao enviar imagem', textBody);
+      return null;
+    }
+    return JSON.parse(textBody);
+  } catch (e) {
+    console.error('[Wame API] Exception in sendWameImage', e);
+    return null;
   }
-  return response.json();
 }
 
 export async function sendWameDocument(to: string, documentUrl: string, fileName: string) {
   const url = `${WAME_API_URL}/${WAME_API_TOKEN}/message/document`;
-  const response = await fetch(url, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ 
-      to, 
-      url: documentUrl, 
-      mimetype: 'application/pdf',
-      fileName
-    }),
-  });
-  
-  if (!response.ok) {
-    console.error('[Wame API] Erro ao enviar documento', await response.text());
+  try {
+    const response = await fetch(url, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ 
+        to, 
+        url: documentUrl, 
+        mimetype: 'application/pdf',
+        fileName
+      }),
+    });
+    const textBody = await response.text();
+    if (!response.ok) {
+      console.error('[Wame API] Erro ao enviar documento', textBody);
+      return null;
+    }
+    return JSON.parse(textBody);
+  } catch (e) {
+    console.error('[Wame API] Exception in sendWameDocument', e);
+    return null;
   }
-  return response.json();
 }
 
 export async function sendWamePresence(to: string, status: string) {

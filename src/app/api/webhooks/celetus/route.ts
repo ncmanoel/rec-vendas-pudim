@@ -41,7 +41,21 @@ export async function POST(request: Request) {
       console.log(`[Celetus Webhook] Recebido aviso de pagamento APROVADO para: ${phone}`);
       
       // Busca o lead no Supabase
-      const { data: leadData } = await supabase.from('leads').select('qstash_reminder_id, status').eq('phone', phone).single();
+      let { data: leadData } = await supabase.from('leads').select('qstash_reminder_id, status').eq('phone', phone).single();
+      
+      if (!leadData) {
+        console.log(`[Celetus Webhook] Lead pagou direto (sem abandono). Criando registro: ${phone}`);
+        // Create the lead so we can update status
+        await supabase.from('leads').insert({
+          phone: phone,
+          name: firstName,
+          email: email,
+          product_name: productName,
+          status: 'CONCLUIDO_CELETUS'
+        });
+        // Mock leadData so it proceeds to send the files
+        leadData = { qstash_reminder_id: null, status: 'CONCLUIDO_CELETUS' };
+      }
       
       if (leadData) {
         // Se houver uma mensagem agendada no QStash, vamos cancelar
@@ -71,7 +85,7 @@ export async function POST(request: Request) {
           await new Promise(r => setTimeout(r, 2000));
           
           // 2. Envia a mensagem de justificativa/bônus
-          const msg12 = `{Olá|Oi|Oie} ${firstName}! Parabéns pela compra do método. Como um bônus de agilidade, acabei de te enviar o seu material por aqui também para facilitar o seu acesso! ☝️`;
+          const msg12 = `{Olá|Oi|Oie} ${firstName}! Parabéns pela compra do método. Como um bônus de agilidade, acabei de te enviar o seu material por aqui também para facilitar o seu acesso! 🥰`;
           await sendWameText(phone, msg12);
           await new Promise(r => setTimeout(r, 1500));
           
@@ -96,7 +110,7 @@ export async function POST(request: Request) {
           await new Promise(r => setTimeout(r, 2000));
           
           // 2. Envia a mensagem de bônus e o link do drive do Order Bump
-          const msgOrderBump = `{Olá|Oi|Oie} ${firstName}! Parabéns pela compra completa. Como um bônus de agilidade, acabei de te enviar os materiais em PDF por aqui também para facilitar o seu acesso! ☝️\n\nE como você aproveitou e levou o *Pack Lucratividade Garantida*, aqui está o link de acesso seguro ao seu Pack no Google Drive:\n👉 https://drive.google.com/drive/folders/1-yGlJKQX7_fluzDFWaj9wriB-EfhWvJd\n\nDesejo a você muito sucesso nas suas vendas! 💛`;
+          const msgOrderBump = `{Olá|Oi|Oie} ${firstName}! Parabéns pela compra completa. Como um bônus de agilidade, acabei de te enviar os materiais em PDF por aqui também para facilitar o seu acesso! 🥰\n\nE como você aproveitou e levou o *Pack Lucratividade Garantida*, aqui está o link de acesso seguro ao seu Pack no Google Drive:\n👉 https://drive.google.com/drive/folders/1-yGlJKQX7_fluzDFWaj9wriB-EfhWvJd\n\nDesejo a você muito sucesso nas suas vendas! 🚀`;
           await sendWameText(phone, msgOrderBump);
 
           return NextResponse.json({ success: true, message: 'Pagamento reconhecido e materiais do Order Bump enviados.' }, { status: 200 });
