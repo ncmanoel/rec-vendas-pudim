@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
-import { sendWameText, sendWameAudio, sendWameImage } from '@/lib/wame';
+import { sendWameText, sendWameAudio, sendWameImage, sendWameDocument } from '@/lib/wame';
 
 export async function GET(req: Request) {
   const { searchParams } = new URL(req.url);
@@ -18,6 +18,14 @@ export async function GET(req: Request) {
     if (customMsg) {
       await sendWameText(phone, customMsg);
       return NextResponse.json({ success: true, message: 'Custom msg sent' });
+    }
+
+    if (type === 'send_pdf') {
+      await sendWameDocument(phone, "https://xzysqeivbibosmryjsqm.supabase.co/storage/v1/object/public/arquivos-bot/Receitas%20de%20Pudim%20Sem%20Forno.pdf", "Receitas de Pudim Sem Forno.pdf");
+      const msg = `Oie! Me desculpe a demora. Tivemos uma instabilidade no envio automático, mas aqui está a sua cópia do material conforme prometido! 🥰\n\nAssim que você conseguir ler, me avisa se tiver alguma dúvida. E caso ainda não tenha feito o Pix, pode enviar quando puder.`;
+      await new Promise(r => setTimeout(r, 2000));
+      await sendWameText(phone, msg);
+      return NextResponse.json({ success: true, message: 'PDF sent' });
     }
 
     if (type === 'upsell_reply') {
@@ -39,7 +47,7 @@ export async function GET(req: Request) {
     await sendWameAudio(phone, "https://xzysqeivbibosmryjsqm.supabase.co/storage/v1/object/public/arquivos-bot/Audio%20Pudim.ogg");
     await new Promise(r => setTimeout(r, 5000));
 
-    const msg3 = `No método *Pudim sem Forno*, você terá acesso a:\n🎂 São 30 receitas super testadas e adoradas pelos clientes!\n\n*Bônus Especial:*\n🍬 11 caldas irresistíveis para você fazer e vender muito 🤤\n\nE tudo isso só por:\n💸 *R$ 10,00* reais no *PIX* 💰`;
+    const msg3 = `No método *Pudim sem Forno*, você terá acesso a:\n🍮 São 30 receitas super testadas e adoradas pelos clientes!\n\n*Bônus Especial:*\n🎁 11 caldas irresistíveis para você fazer e vender muito 🤩\n\nE tudo isso só por:\n💸 *R$ 10,00* reais no *PIX* 💸`;
     await sendWameText(phone, msg3);
     await new Promise(r => setTimeout(r, 5000));
 
