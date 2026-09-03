@@ -34,13 +34,16 @@ export async function GET(req: Request) {
       return NextResponse.json({ success: true, message: 'Upsell reply sent' });
     }
 
+    const { data: existing } = await supabase.from('leads').select('name').eq('phone', phone).single();
+    const leadName = existing?.name || 'Amiga(o)';
+
     await supabase.from('leads').upsert({
       phone: phone,
-      name: 'Lead Manual',
+      name: leadName,
       status: 'AGUARDANDO_RESPOSTA_1_2'
     });
 
-    const msg1 = 'Oie! Tudo bem? Aqui é a Ana. Vi que você me mandou mensagem no outro número falando que tem interesse no método Pudim sem forno. Eu estou usando este número aqui agora para atendimento, tá bom? 🥰';
+    const msg1 = `Oie! Tudo bem? Aqui é a Ana. Vi que você me mandou mensagem no outro número falando que tem interesse no método Pudim sem forno. Eu estou usando este número aqui agora para atendimento, tá bom? 🥰`;
     await sendWameText(phone, msg1);
     await new Promise(r => setTimeout(r, 3000));
 
