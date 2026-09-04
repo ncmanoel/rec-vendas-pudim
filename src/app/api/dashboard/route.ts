@@ -14,18 +14,24 @@ export async function GET(req: Request) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
+    // Datas configuráveis via URL Params
+    const sinceParam = searchParams.get('since');
+    const untilParam = searchParams.get('until');
+
     const today = new Date();
     const thirtyDaysAgo = new Date();
     thirtyDaysAgo.setDate(today.getDate() - 30);
     
-    const sinceStr = thirtyDaysAgo.toISOString().split('T')[0];
-    const untilStr = today.toISOString().split('T')[0];
+    const sinceStr = sinceParam ? sinceParam : thirtyDaysAgo.toISOString().split('T')[0];
+    const untilStr = untilParam ? untilParam : today.toISOString().split('T')[0];
 
     // 1. Buscar Vendas do Supabase
     const { data: vendas, error: dbError } = await supabase
       .from('vendas')
       .select('*')
-      .gte('data_venda', `${sinceStr}T00:00:00Z`);
+      .gte('data_venda', `${sinceStr}T00:00:00Z`)
+      .lte('data_venda', `${untilStr}T23:59:59Z`)
+      .order('data_venda', { ascending: false });
 
     if (dbError) throw dbError;
 
@@ -171,7 +177,7 @@ export async function GET(req: Request) {
       orderBumps: totalOrderBumps
     };
 
-    return NextResponse.json({ success: true, summary, chartData, campaigns });
+    return NextResponse.json({ success: true, summary, chartData, campaigns, rawSales: vendas });
 
   } catch (error: any) {
     console.error('Dashboard Error:', error);
