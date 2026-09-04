@@ -71,6 +71,13 @@ export async function POST(request: Request) {
         // Verifica se comprou o Order Bump baseado no totalPrice
         const totalPrice = payload.commission?.totalPrice || parseFloat(payload.charge?.amount || "0");
 
+        // NOVIDADE: Inserir a venda na tabela vendas do Supabase
+        await supabase.from('vendas').insert({
+          telefone: phone,
+          nome_produto: productName,
+          valor: totalPrice
+        });
+
         if (totalPrice <= 10.00) {
           console.log(`[Celetus Webhook] Lead aprovado SEM order bump (Total: ${totalPrice}). Iniciando Upsell via WhatsApp para: ${phone}`);
           
