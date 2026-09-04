@@ -13,7 +13,17 @@ export default function AdminDashboard() {
   
   // Filtros e Tabs
   const [activeTab, setActiveTab] = useState('overview');
-  const [period, setPeriod] = useState('30'); // '3', '7', '30'
+  const [period, setPeriod] = useState('30'); // '3', '7', '30', 'custom'
+  
+  // Para período personalizado
+  const [customStart, setCustomStart] = useState(() => {
+    const d = new Date();
+    d.setDate(d.getDate() - 7);
+    return d.toISOString().split('T')[0];
+  });
+  const [customEnd, setCustomEnd] = useState(() => {
+    return new Date().toISOString().split('T')[0];
+  });
 
   // Modal Venda Manual
   const [isModalOpen, setIsModalOpen] = useState(false);
@@ -55,7 +65,7 @@ export default function AdminDashboard() {
       if (json.success) {
         setIsModalOpen(false);
         setSaleForm({ date: getLocalNow(), product: 'Pudim sem Forno (Principal)', value: '10.00', phone: '' });
-        fetchData(period, password); // Recarrega os gráficos
+        fetchData(period, password, customStart, customEnd); // Recarrega os gráficos
       } else {
         alert('Erro: ' + (json.error || 'Falha ao registrar venda'));
       }
@@ -66,16 +76,24 @@ export default function AdminDashboard() {
     }
   };
 
-  const fetchData = async (days: string, pwd = password) => {
+  const fetchData = async (days: string, pwd = password, start = customStart, end = customEnd) => {
     setLoading(true);
     setError('');
     try {
-      const today = new Date();
-      const past = new Date();
-      past.setDate(today.getDate() - parseInt(days));
-      
-      const sinceStr = past.toISOString().split('T')[0];
-      const untilStr = today.toISOString().split('T')[0];
+      let sinceStr = '';
+      let untilStr = '';
+
+      if (days === 'custom') {
+        sinceStr = start;
+        untilStr = end;
+      } else {
+        const today = new Date();
+        const past = new Date();
+        past.setDate(today.getDate() - parseInt(days));
+        
+        sinceStr = past.toISOString().split('T')[0];
+        untilStr = today.toISOString().split('T')[0];
+      }
 
       const res = await fetch(`/api/dashboard?pwd=${pwd}&since=${sinceStr}&until=${untilStr}`);
       const json = await res.json();
@@ -195,15 +213,15 @@ export default function AdminDashboard() {
             <p className="text-sm text-slate-500">Métricas atualizadas em tempo real via Meta & Celetus</p>
           </div>
           
-          <div className="flex items-center gap-4">
+          <div className="flex flex-col sm:flex-row items-center gap-4">
             <button
               onClick={() => setIsModalOpen(true)}
-              className="flex items-center gap-2 bg-green-600 hover:bg-green-500 text-white px-4 py-2 rounded-lg font-bold transition-colors"
+              className="flex items-center gap-2 bg-green-600 hover:bg-green-500 text-white px-4 py-2 rounded-lg font-bold transition-colors shadow-sm"
             >
               <PlusCircle className="w-4 h-4" /> Venda Pix
             </button>
-            <div className="flex items-center gap-2 bg-slate-100 p-1 rounded-lg border border-slate-200">
-              <Calendar className="w-4 h-4 text-slate-400 ml-2" />
+            <div className="flex flex-wrap items-center gap-2 bg-slate-100 p-1 rounded-lg border border-slate-200">
+              <Calendar className="w-4 h-4 text-slate-400 mx-2" />
               <button 
                 onClick={() => handlePeriodChange('3')}
                 className={`px-3 py-1.5 text-sm font-medium rounded-md transition-colors ${period === '3' ? 'bg-white shadow-sm text-blue-600' : 'text-slate-600 hover:text-slate-900'}`}
@@ -222,7 +240,37 @@ export default function AdminDashboard() {
               >
                 30 Dias
               </button>
+              <button 
+                onClick={() => setPeriod('custom')}
+                className={`px-3 py-1.5 text-sm font-medium rounded-md transition-colors ${period === 'custom' ? 'bg-white shadow-sm text-blue-600' : 'text-slate-600 hover:text-slate-900'}`}
+              >
+                Personalizado
+              </button>
             </div>
+            
+            {period === 'custom' && (
+              <div className="flex items-center gap-2 bg-white p-1 rounded-lg border border-slate-200 shadow-sm">
+                <input 
+                  type="date" 
+                  value={customStart}
+                  onChange={(e) => setCustomStart(e.target.value)}
+                  className="px-2 py-1.5 text-sm font-medium text-slate-700 bg-transparent focus:outline-none"
+                />
+                <span className="text-slate-400 text-sm">até</span>
+                <input 
+                  type="date" 
+                  value={customEnd}
+                  onChange={(e) => setCustomEnd(e.target.value)}
+                  className="px-2 py-1.5 text-sm font-medium text-slate-700 bg-transparent focus:outline-none"
+                />
+                <button 
+                  onClick={() => fetchData('custom', password, customStart, customEnd)}
+                  className="px-3 py-1.5 bg-blue-600 hover:bg-blue-500 text-white text-sm font-bold rounded-md transition-colors ml-1"
+                >
+                  Aplicar
+                </button>
+              </div>
+            )}
           </div>
         </header>
 
