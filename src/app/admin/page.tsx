@@ -151,7 +151,7 @@ export default function AdminDashboard() {
                   <XAxis dataKey="date" tick={{fontSize: 12}} tickFormatter={(val) => val.substring(5).replace('-','/')} />
                   <YAxis tick={{fontSize: 12}} />
                   <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#e2e8f0" />
-                  <Tooltip formatter={(value: number) => formatCurrency(value)} />
+                  <Tooltip formatter={(value: any) => formatCurrency(Number(value))} />
                   <Legend />
                   <Area type="monotone" name="Receita" dataKey="receita" stroke="#10b981" fillOpacity={1} fill="url(#colorReceita)" strokeWidth={3} />
                   <Area type="monotone" name="Gasto" dataKey="gasto" stroke="#ef4444" fillOpacity={1} fill="url(#colorGasto)" strokeWidth={3} />
