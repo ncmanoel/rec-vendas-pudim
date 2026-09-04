@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import { AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend } from 'recharts';
-import { DollarSign, MousePointerClick, TrendingUp, ShoppingCart, Percent, AlertCircle, Calendar, LayoutDashboard, Megaphone, Table as TableIcon } from 'lucide-react';
+import { DollarSign, MousePointerClick, TrendingUp, ShoppingCart, Percent, AlertCircle, Calendar, LayoutDashboard, Megaphone, Table as TableIcon, PlusCircle, X } from 'lucide-react';
 
 export default function AdminDashboard() {
   const [password, setPassword] = useState('');
@@ -14,6 +14,57 @@ export default function AdminDashboard() {
   // Filtros e Tabs
   const [activeTab, setActiveTab] = useState('overview');
   const [period, setPeriod] = useState('30'); // '3', '7', '30'
+
+  // Modal Venda Manual
+  const [isModalOpen, setIsModalOpen] = useState(false);
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  
+  // Default datetime for HTML input (YYYY-MM-DDTHH:mm)
+  const getLocalNow = () => {
+    const d = new Date();
+    d.setHours(d.getHours() - 3); // BRT
+    return d.toISOString().slice(0, 16);
+  };
+
+  const [saleForm, setSaleForm] = useState({
+    date: getLocalNow(),
+    product: 'Pudim sem Forno (Principal)',
+    value: '10.00',
+    phone: ''
+  });
+
+  const handleProductSelect = (e: React.ChangeEvent<HTMLSelectElement>) => {
+    const prod = e.target.value;
+    let val = '10.00';
+    if (prod === 'Pack Lucratividade (Upsell)') val = '11.90';
+    if (prod === 'Combo: Pudim + Pack') val = '21.90';
+    if (prod === 'Outro') val = '0.00';
+    setSaleForm({ ...saleForm, product: prod, value: val });
+  };
+
+  const submitManualSale = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setIsSubmitting(true);
+    try {
+      const res = await fetch('/api/sales/manual', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ ...saleForm, password })
+      });
+      const json = await res.json();
+      if (json.success) {
+        setIsModalOpen(false);
+        setSaleForm({ date: getLocalNow(), product: 'Pudim sem Forno (Principal)', value: '10.00', phone: '' });
+        fetchData(period, password); // Recarrega os gráficos
+      } else {
+        alert('Erro: ' + (json.error || 'Falha ao registrar venda'));
+      }
+    } catch (err) {
+      alert('Erro na requisição');
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
 
   const fetchData = async (days: string, pwd = password) => {
     setLoading(true);
@@ -144,26 +195,34 @@ export default function AdminDashboard() {
             <p className="text-sm text-slate-500">Métricas atualizadas em tempo real via Meta & Celetus</p>
           </div>
           
-          <div className="flex items-center gap-2 bg-slate-100 p-1 rounded-lg border border-slate-200">
-            <Calendar className="w-4 h-4 text-slate-400 ml-2" />
-            <button 
-              onClick={() => handlePeriodChange('3')}
-              className={`px-3 py-1.5 text-sm font-medium rounded-md transition-colors ${period === '3' ? 'bg-white shadow-sm text-blue-600' : 'text-slate-600 hover:text-slate-900'}`}
+          <div className="flex items-center gap-4">
+            <button
+              onClick={() => setIsModalOpen(true)}
+              className="flex items-center gap-2 bg-green-600 hover:bg-green-500 text-white px-4 py-2 rounded-lg font-bold transition-colors"
             >
-              3 Dias
+              <PlusCircle className="w-4 h-4" /> Venda Pix
             </button>
-            <button 
-              onClick={() => handlePeriodChange('7')}
-              className={`px-3 py-1.5 text-sm font-medium rounded-md transition-colors ${period === '7' ? 'bg-white shadow-sm text-blue-600' : 'text-slate-600 hover:text-slate-900'}`}
-            >
-              7 Dias
-            </button>
-            <button 
-              onClick={() => handlePeriodChange('30')}
-              className={`px-3 py-1.5 text-sm font-medium rounded-md transition-colors ${period === '30' ? 'bg-white shadow-sm text-blue-600' : 'text-slate-600 hover:text-slate-900'}`}
-            >
-              30 Dias
-            </button>
+            <div className="flex items-center gap-2 bg-slate-100 p-1 rounded-lg border border-slate-200">
+              <Calendar className="w-4 h-4 text-slate-400 ml-2" />
+              <button 
+                onClick={() => handlePeriodChange('3')}
+                className={`px-3 py-1.5 text-sm font-medium rounded-md transition-colors ${period === '3' ? 'bg-white shadow-sm text-blue-600' : 'text-slate-600 hover:text-slate-900'}`}
+              >
+                3 Dias
+              </button>
+              <button 
+                onClick={() => handlePeriodChange('7')}
+                className={`px-3 py-1.5 text-sm font-medium rounded-md transition-colors ${period === '7' ? 'bg-white shadow-sm text-blue-600' : 'text-slate-600 hover:text-slate-900'}`}
+              >
+                7 Dias
+              </button>
+              <button 
+                onClick={() => handlePeriodChange('30')}
+                className={`px-3 py-1.5 text-sm font-medium rounded-md transition-colors ${period === '30' ? 'bg-white shadow-sm text-blue-600' : 'text-slate-600 hover:text-slate-900'}`}
+              >
+                30 Dias
+              </button>
+            </div>
           </div>
         </header>
 
@@ -382,6 +441,86 @@ export default function AdminDashboard() {
                   </tbody>
                 </table>
               </div>
+            </div>
+          </div>
+        )}
+
+        {/* MODAL VENDA MANUAL */}
+        {isModalOpen && (
+          <div className="fixed inset-0 bg-slate-900/50 backdrop-blur-sm flex items-center justify-center p-4 z-50">
+            <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md overflow-hidden">
+              <div className="p-6 border-b border-slate-100 flex justify-between items-center bg-slate-50">
+                <h3 className="text-lg font-bold text-slate-800 flex items-center gap-2">
+                  <DollarSign className="w-5 h-5 text-green-600" />
+                  Registrar Venda Pix
+                </h3>
+                <button onClick={() => setIsModalOpen(false)} className="text-slate-400 hover:text-slate-600">
+                  <X className="w-5 h-5" />
+                </button>
+              </div>
+              <form onSubmit={submitManualSale} className="p-6 space-y-4">
+                <div>
+                  <label className="block text-sm font-medium text-slate-700 mb-1">Data e Hora</label>
+                  <input
+                    type="datetime-local"
+                    value={saleForm.date}
+                    onChange={(e) => setSaleForm({...saleForm, date: e.target.value})}
+                    className="w-full p-2.5 bg-white border border-slate-300 rounded-lg text-slate-800 focus:outline-none focus:border-green-500 focus:ring-1 focus:ring-green-500"
+                    required
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-slate-700 mb-1">Produto</label>
+                  <select
+                    value={saleForm.product}
+                    onChange={handleProductSelect}
+                    className="w-full p-2.5 bg-white border border-slate-300 rounded-lg text-slate-800 focus:outline-none focus:border-green-500 focus:ring-1 focus:ring-green-500"
+                  >
+                    <option value="Pudim sem Forno (Principal)">Pudim sem Forno (Principal)</option>
+                    <option value="Pack Lucratividade (Upsell)">Pack Lucratividade (Upsell)</option>
+                    <option value="Combo: Pudim + Pack">Combo: Pudim + Pack</option>
+                    <option value="Outro">Outro (Informar valor livre)</option>
+                  </select>
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-slate-700 mb-1">Valor Líquido (R$)</label>
+                  <input
+                    type="number"
+                    step="0.01"
+                    value={saleForm.value}
+                    onChange={(e) => setSaleForm({...saleForm, value: e.target.value})}
+                    className="w-full p-2.5 bg-white border border-slate-300 rounded-lg text-slate-800 focus:outline-none focus:border-green-500 focus:ring-1 focus:ring-green-500"
+                    required
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-slate-700 mb-1">Telefone do Lead (Opcional)</label>
+                  <input
+                    type="text"
+                    placeholder="Ex: 5511999999999"
+                    value={saleForm.phone}
+                    onChange={(e) => setSaleForm({...saleForm, phone: e.target.value})}
+                    className="w-full p-2.5 bg-white border border-slate-300 rounded-lg text-slate-800 focus:outline-none focus:border-green-500 focus:ring-1 focus:ring-green-500"
+                  />
+                  <p className="text-xs text-slate-500 mt-1">Apenas para registro. Nenhuma mensagem será enviada.</p>
+                </div>
+                <div className="pt-4 flex gap-3">
+                  <button
+                    type="button"
+                    onClick={() => setIsModalOpen(false)}
+                    className="flex-1 px-4 py-2.5 border border-slate-300 text-slate-700 rounded-lg font-medium hover:bg-slate-50 transition-colors"
+                  >
+                    Cancelar
+                  </button>
+                  <button
+                    type="submit"
+                    disabled={isSubmitting}
+                    className="flex-1 px-4 py-2.5 bg-green-600 text-white rounded-lg font-bold hover:bg-green-500 transition-colors disabled:opacity-50"
+                  >
+                    {isSubmitting ? 'Salvando...' : 'Salvar Venda'}
+                  </button>
+                </div>
+              </form>
             </div>
           </div>
         )}
