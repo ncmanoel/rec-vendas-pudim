@@ -70,12 +70,15 @@ export async function POST(request: Request) {
         
         // Verifica se comprou o Order Bump baseado no totalPrice
         const totalPrice = payload.commission?.totalPrice || parseFloat(payload.charge?.amount || "0");
+        
+        // Pega o valor líquido para inserir no banco de dados (o que cai no bolso)
+        const netValue = payload.commission?.value ? parseFloat(payload.commission.value) : (totalPrice * 0.851);
 
-        // NOVIDADE: Inserir a venda na tabela vendas do Supabase com rastreio UTM
+        // NOVIDADE: Inserir a venda na tabela vendas do Supabase com rastreio UTM e VALOR LÍQUIDO
         await supabase.from('vendas').insert({
           telefone: phone,
           nome_produto: productName,
-          valor: totalPrice,
+          valor: netValue,
           utm_campaign: payload.utm_campaign || payload.tracking?.utm_campaign || payload.checkout_tracking?.utm_campaign || null,
           utm_source: payload.utm_source || payload.tracking?.utm_source || payload.checkout_tracking?.utm_source || null,
           utm_medium: payload.utm_medium || payload.tracking?.utm_medium || payload.checkout_tracking?.utm_medium || null,

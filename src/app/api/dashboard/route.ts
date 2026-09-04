@@ -104,7 +104,11 @@ export async function GET(req: Request) {
 
     // --- AGREGAR VENDAS SUPABASE ---
     vendas?.forEach((venda: any) => {
-      const date = venda.data_venda.split('T')[0];
+      // O banco armazena em UTC. Vamos forçar um shift de -3h para o Date e extrair a data YYYY-MM-DD
+      const localDate = new Date(venda.data_venda);
+      localDate.setHours(localDate.getHours() - 3);
+      const date = localDate.toISOString().split('T')[0];
+      
       const valor = parseFloat(venda.valor || '0');
       const isOrderBump = valor > 10.00;
 
