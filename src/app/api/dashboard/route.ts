@@ -14,7 +14,6 @@ export async function GET(req: Request) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
-    // Pega os ltimos 30 dias
     const today = new Date();
     const thirtyDaysAgo = new Date();
     thirtyDaysAgo.setDate(today.getDate() - 30);
@@ -26,75 +25,154 @@ export async function GET(req: Request) {
     const { data: vendas, error: dbError } = await supabase
       .from('vendas')
       .select('*')
-      .gte('data_venda', `${sinceStr}T00:00:00Z`)
-      .order('data_venda', { ascending: false });
+      .gte('data_venda', `${sinceStr}T00:00:00Z`);
 
     if (dbError) throw dbError;
 
-    // 2. Buscar Gastos do Meta Ads
+    // 2. Buscar Dados do Meta Ads (Nível Campanha, Agrupado por Dia para o Gráfico)
     const metaToken = process.env.META_ACCESS_TOKEN;
     const adAccountId = process.env.META_AD_ACCOUNT_ID;
     
-    let metaData = [];
+    let fbData = [];
     if (metaToken && adAccountId) {
-      const fbUrl = `https://graph.facebook.com/v20.0/${adAccountId}/insights?time_range={'since':'${sinceStr}','until':'${untilStr}'}&time_increment=1&access_token=${metaToken}`;
+      // Puxar nível de campanha agrupado por dia
+      const fbUrl = `https://graph.facebook.com/v20.0/${adAccountId}/insights?level=campaign&fields=campaign_id,campaign_name,spend,actions,inline_link_clicks,outbound_clicks&time_range={'since':'${sinceStr}','until':'${untilStr}'}&time_increment=1&access_token=${metaToken}`;
       const fbRes = await fetch(fbUrl);
       const fbJson = await fbRes.json();
       if (fbJson.data) {
-        metaData = fbJson.data;
+        fbData = fbJson.data;
       }
     }
 
-    // 3. Consolidar Dados por Dia
+    // 3. Estruturas de Agregação
     const dailyStats: Record<string, any> = {};
+    const campaignStats: Record<string, any> = {};
 
-    // Popula com dados do Meta
-    metaData.forEach((day: any) => {
-      const date = day.date_start; // YYYY-MM-DD
-      const gastoBruto = parseFloat(day.spend || '0');
-      const gastoComImposto = gastoBruto * 1.1383; // +13,83%
+    let totalGasto = 0;
+    let totalReceita = 0;
+    let totalLinkClicks = 0;
+    let totalLPViews = 0;
+    let totalVendasGlobais = 0;
+    let totalOrderBumps = 0;
+
+    // --- AGREGAR META ADS ---
+    fbData.forEach((row: any) => {
+      const date = row.date_start;
+      const campId = row.campaign_id;
+      const campName = row.campaign_name;
       
-      dailyStats[date] = {
-        date,
-        gasto: gastoComImposto,
-        receita: 0,
-        vendas: 0,
-        orderBumps: 0
-      };
+      const gastoBruto = parseFloat(row.spend || '0');
+      const gastoReal = gastoBruto * 1.1383; // Imposto 13.83%
+      totalGasto += gastoReal;
+
+      // Pegar Link Clicks e Landing Page Views
+      let linkClicks = parseInt(row.inline_link_clicks || '0');
+      let lpViews = 0;
+
+      if (row.actions) {
+        const lpvAction = row.actions.find((a: any) => a.action_type === 'landing_page_view');
+        if (lpvAction) lpViews = parseInt(lpvAction.value);
+        
+        const clickAction = row.actions.find((a: any) => a.action_type === 'link_click');
+        if (clickAction && linkClicks === 0) linkClicks = parseInt(clickAction.value);
+      }
+
+      totalLinkClicks += linkClicks;
+      totalLPViews += lpViews;
+
+      // Diário
+      if (!dailyStats[date]) dailyStats[date] = { date, gasto: 0, receita: 0, vendas: 0, orderBumps: 0 };
+      dailyStats[date].gasto += gastoReal;
+
+      // Campanha
+      if (!campaignStats[campId]) {
+        campaignStats[campId] = {
+          id: campId,
+          name: campName,
+          gasto: 0,
+          linkClicks: 0,
+          lpViews: 0,
+          vendasCeletus: 0,
+          receitaCeletus: 0,
+          orderBumps: 0
+        };
+      }
+      campaignStats[campId].gasto += gastoReal;
+      campaignStats[campId].linkClicks += linkClicks;
+      campaignStats[campId].lpViews += lpViews;
     });
 
-    // Popula com dados das Vendas
+    // --- AGREGAR VENDAS SUPABASE ---
     vendas?.forEach((venda: any) => {
-      // ajusta timezone se precisar, usando substring simples
       const date = venda.data_venda.split('T')[0];
-      if (!dailyStats[date]) {
-        dailyStats[date] = { date, gasto: 0, receita: 0, vendas: 0, orderBumps: 0 };
-      }
-      
-      dailyStats[date].receita += parseFloat(venda.valor || '0');
+      const valor = parseFloat(venda.valor || '0');
+      const isOrderBump = valor > 10.00;
+
+      totalReceita += valor;
+      totalVendasGlobais += 1;
+      if (isOrderBump) totalOrderBumps += 1;
+
+      // Diário
+      if (!dailyStats[date]) dailyStats[date] = { date, gasto: 0, receita: 0, vendas: 0, orderBumps: 0 };
+      dailyStats[date].receita += valor;
       dailyStats[date].vendas += 1;
-      
-      if (parseFloat(venda.valor) > 10.00) {
-        dailyStats[date].orderBumps += 1;
+      if (isOrderBump) dailyStats[date].orderBumps += 1;
+
+      // Campanha - Extrair ID do UTM (ex: [TRK-120233677475490257])
+      const utmCamp = venda.utm_campaign || '';
+      const match = utmCamp.match(/\[TRK-(\d+)\]/);
+      const extractedCampId = match ? match[1] : 'Desconhecida/Sem_UTM';
+
+      if (!campaignStats[extractedCampId]) {
+         campaignStats[extractedCampId] = {
+           id: extractedCampId,
+           name: utmCamp || 'Venda sem rastreio ou Orgânica',
+           gasto: 0,
+           linkClicks: 0,
+           lpViews: 0,
+           vendasCeletus: 0,
+           receitaCeletus: 0,
+           orderBumps: 0
+         };
       }
+      campaignStats[extractedCampId].receitaCeletus += valor;
+      campaignStats[extractedCampId].vendasCeletus += 1;
+      if (isOrderBump) campaignStats[extractedCampId].orderBumps += 1;
     });
 
-    // Converter para array e calcular Lucro/ROI
-    const result = Object.values(dailyStats).map((stat: any) => {
+    // --- FORMATAR RESULTADOS ---
+    const chartData = Object.values(dailyStats).map((stat: any) => {
       stat.lucro = stat.receita - stat.gasto;
-      stat.roi = stat.gasto > 0 ? (stat.receita / stat.gasto) : 0;
-      stat.cpa = stat.vendas > 0 ? (stat.gasto / stat.vendas) : 0;
       return stat;
     });
+    chartData.sort((a: any, b: any) => a.date.localeCompare(b.date)); // Ordem cronológica para gráficos
 
-    // Ordenar do mais recente pro mais antigo
-    result.sort((a, b) => b.date.localeCompare(a.date));
+    const campaigns = Object.values(campaignStats).map((camp: any) => {
+      camp.lucro = camp.receitaCeletus - camp.gasto;
+      camp.roas = camp.gasto > 0 ? (camp.receitaCeletus / camp.gasto) : 0;
+      camp.cpa = camp.vendasCeletus > 0 ? (camp.gasto / camp.vendasCeletus) : 0;
+      camp.connectRate = camp.linkClicks > 0 ? ((camp.lpViews / camp.linkClicks) * 100) : 0;
+      return camp;
+    });
+    // Ordenar campanhas por gasto
+    campaigns.sort((a: any, b: any) => b.gasto - a.gasto);
 
-    return NextResponse.json({ success: true, data: result });
+    const summary = {
+      totalGasto,
+      totalReceita,
+      totalLucro: totalReceita - totalGasto,
+      roas: totalGasto > 0 ? (totalReceita / totalGasto) : 0,
+      connectRate: totalLinkClicks > 0 ? ((totalLPViews / totalLinkClicks) * 100) : 0,
+      totalVendas: totalVendasGlobais,
+      orderBumps: totalOrderBumps
+    };
+
+    return NextResponse.json({ success: true, summary, chartData, campaigns });
 
   } catch (error: any) {
     console.error('Dashboard Error:', error);
     return NextResponse.json({ error: error.message }, { status: 500 });
   }
 }
+
 export const maxDuration = 60;
