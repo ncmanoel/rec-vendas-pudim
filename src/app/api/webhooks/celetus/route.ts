@@ -71,11 +71,16 @@ export async function POST(request: Request) {
         // Verifica se comprou o Order Bump baseado no totalPrice
         const totalPrice = payload.commission?.totalPrice || parseFloat(payload.charge?.amount || "0");
 
-        // NOVIDADE: Inserir a venda na tabela vendas do Supabase
+        // NOVIDADE: Inserir a venda na tabela vendas do Supabase com rastreio UTM
         await supabase.from('vendas').insert({
           telefone: phone,
           nome_produto: productName,
-          valor: totalPrice
+          valor: totalPrice,
+          utm_campaign: payload.utm_campaign || payload.tracking?.utm_campaign || payload.checkout_tracking?.utm_campaign || null,
+          utm_source: payload.utm_source || payload.tracking?.utm_source || payload.checkout_tracking?.utm_source || null,
+          utm_medium: payload.utm_medium || payload.tracking?.utm_medium || payload.checkout_tracking?.utm_medium || null,
+          utm_content: payload.utm_content || payload.tracking?.utm_content || payload.checkout_tracking?.utm_content || null,
+          utm_term: payload.utm_term || payload.tracking?.utm_term || payload.checkout_tracking?.utm_term || null,
         });
 
         if (totalPrice <= 10.00) {
