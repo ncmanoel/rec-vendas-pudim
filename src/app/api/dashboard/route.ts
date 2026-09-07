@@ -17,6 +17,9 @@ export async function GET(req: Request) {
     const sinceParam = searchParams.get('since');
     const untilParam = searchParams.get('until');
 
+    // Always work in BRT (UTC-3). 
+    // "since" is the START of that day in BRT = T03:00:00Z in UTC
+    // "until" is the END of that day in BRT = next day T02:59:59Z in UTC
     const today = new Date();
     const thirtyDaysAgo = new Date();
     thirtyDaysAgo.setDate(today.getDate() - 30);
@@ -24,21 +27,34 @@ export async function GET(req: Request) {
     const sinceStr = sinceParam ? sinceParam : thirtyDaysAgo.toISOString().split('T')[0];
     const untilStr = untilParam ? untilParam : today.toISOString().split('T')[0];
 
+    // For Supabase: compensate BRT (-3h) so day boundaries are correct
+    const sinceUTC = `${sinceStr}T03:00:00Z`;   // Start of BRT day = 03:00 UTC
+    const untilUTC = `${untilStr}T02:59:59Z`;   // End of BRT day = next day 02:59 UTC
+    // Special case: if until is today, use end of UTC day to not miss late-night UTC sales
+    const untilUTCFull = `${untilStr}T26:59:59Z`; // will be normalized, use tomorrow 02:59
+    // Safer: just go until end of UTC day for "until" date + 1 day
+    const untilDate = new Date(untilStr + 'T00:00:00Z');
+    untilDate.setDate(untilDate.getDate() + 1);
+    const untilUTCSafe = untilDate.toISOString().replace('.000Z', 'Z').split('T')[0] + 'T02:59:59Z';
+
     // 1. Fetch Supabase Vendas & Leads
     const [vendasRes, leadsRes] = await Promise.all([
       supabase.from('vendas')
         .select('*')
-        .gte('data_venda', `${sinceStr}T00:00:00Z`)
-        .lte('data_venda', `${untilStr}T23:59:59Z`)
+        .gte('data_venda', sinceUTC)
+        .lte('data_venda', untilUTCSafe)
         .order('data_venda', { ascending: false }),
       supabase.from('leads')
         .select('phone, created_at, status')
-        .gte('created_at', `${sinceStr}T00:00:00Z`)
-        .lte('created_at', `${untilStr}T23:59:59Z`)
+        .gte('created_at', sinceUTC)
+        .lte('created_at', untilUTCSafe)
     ]);
 
     if (vendasRes.error) throw vendasRes.error;
-    if (leadsRes.error) throw leadsRes.error;
+    if (leadsRes.error) {
+      // leads table might not have created_at - ignore leads error gracefully
+      console.warn('Leads query error (non-fatal):', leadsRes.error.message);
+    }
 
     const vendas = vendasRes.data || [];
     const leads = leadsRes.data || [];
@@ -47,20 +63,26 @@ export async function GET(req: Request) {
     const metaToken = process.env.META_ACCESS_TOKEN;
     const adAccountId = process.env.META_AD_ACCOUNT_ID;
     
-    let fbDailyData = [];
-    let fbAdData = [];
+    let fbDailyData: any[] = [];
+    let fbAdData: any[] = [];
 
     if (metaToken && adAccountId) {
-      // 2.A Chart Data: level=account with time_increment=1 (Muito mais rápido e leve)
-      const fbUrlDaily = `https://graph.facebook.com/v20.0/${adAccountId}/insights?level=account&fields=spend&time_range={'since':'${sinceStr}','until':'${untilStr}'}&time_increment=1&access_token=${metaToken}`;
+      // IMPORTANT: time_range must be URL-encoded JSON, not raw object literal with single quotes
+      const timeRangeJson = encodeURIComponent(JSON.stringify({ since: sinceStr, until: untilStr }));
+
+      // 2.A Chart Data: level=account with time_increment=1
+      const fbUrlDaily = `https://graph.facebook.com/v20.0/${adAccountId}/insights?level=account&fields=spend&time_range=${timeRangeJson}&time_increment=1&access_token=${metaToken}`;
       
-      // 2.B Table Data: level=ad without time_increment (Agregação perfeita de unique_clicks)
-      const fbUrlAds = `https://graph.facebook.com/v20.0/${adAccountId}/insights?level=ad&fields=campaign_id,campaign_name,adset_id,adset_name,ad_id,ad_name,spend,impressions,inline_link_clicks,unique_inline_link_clicks,actions&time_range={'since':'${sinceStr}','until':'${untilStr}'}&limit=1000&access_token=${metaToken}`;
+      // 2.B Table Data: level=ad (no time_increment - Meta aggregates unique clicks correctly)
+      const fbUrlAds = `https://graph.facebook.com/v20.0/${adAccountId}/insights?level=ad&fields=campaign_id,campaign_name,adset_id,adset_name,ad_id,ad_name,spend,impressions,inline_link_clicks,unique_inline_link_clicks,actions&time_range=${timeRangeJson}&limit=1000&access_token=${metaToken}`;
 
       const [resDaily, resAds] = await Promise.all([
         fetch(fbUrlDaily).then(r => r.json()),
         fetch(fbUrlAds).then(r => r.json())
       ]);
+
+      if (resDaily.error) console.error('Meta Daily API Error:', JSON.stringify(resDaily.error));
+      if (resAds.error) console.error('Meta Ads API Error:', JSON.stringify(resAds.error));
 
       if (resDaily.data) fbDailyData = resDaily.data;
       if (resAds.data) fbAdData = resAds.data;
