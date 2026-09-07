@@ -79,11 +79,11 @@ export async function POST(request: Request) {
           telefone: phone,
           nome_produto: productName,
           valor: netValue,
-          utm_campaign: payload.utm_campaign || payload.tracking?.utm_campaign || payload.checkout_tracking?.utm_campaign || null,
-          utm_source: payload.utm_source || payload.tracking?.utm_source || payload.checkout_tracking?.utm_source || null,
-          utm_medium: payload.utm_medium || payload.tracking?.utm_medium || payload.checkout_tracking?.utm_medium || null,
-          utm_content: payload.utm_content || payload.tracking?.utm_content || payload.checkout_tracking?.utm_content || null,
-          utm_term: payload.utm_term || payload.tracking?.utm_term || payload.checkout_tracking?.utm_term || null,
+          utm_campaign: payload.trackingParameters?.utm_campaign || payload.utm_campaign || payload.tracking?.utm_campaign || payload.checkout_tracking?.utm_campaign || null,
+          utm_source: payload.trackingParameters?.utm_source || payload.utm_source || payload.tracking?.utm_source || payload.checkout_tracking?.utm_source || null,
+          utm_medium: payload.trackingParameters?.utm_medium || payload.utm_medium || payload.tracking?.utm_medium || payload.checkout_tracking?.utm_medium || null,
+          utm_content: payload.trackingParameters?.utm_content || payload.utm_content || payload.tracking?.utm_content || payload.checkout_tracking?.utm_content || null,
+          utm_term: payload.trackingParameters?.utm_term || payload.utm_term || payload.tracking?.utm_term || payload.checkout_tracking?.utm_term || null,
         });
 
         if (totalPrice <= 10.00) {
