@@ -45,14 +45,19 @@ export async function POST(request: Request) {
       
       if (!leadData) {
         console.log(`[Celetus Webhook] Lead pagou direto (sem abandono). Criando registro: ${phone}`);
-        // Create the lead so we can update status
-        await supabase.from('leads').insert({
+        // Create the lead so we can update status. Catch error in case of concurrent webhook race condition (Orderbump)
+        const { error: insertError } = await supabase.from('leads').insert({
           phone: phone,
           name: firstName,
           email: email,
           product_name: productName,
           status: 'CONCLUIDO_CELETUS'
         });
+        
+        if (insertError && insertError.code !== '23505') {
+           console.error('[Celetus Webhook] Erro ao inserir lead direto:', insertError);
+        }
+        
         // Mock leadData so it proceeds to send the files
         leadData = { qstash_reminder_id: null, status: 'CONCLUIDO_CELETUS' };
       }
