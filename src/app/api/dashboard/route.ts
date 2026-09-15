@@ -71,7 +71,8 @@ export async function GET(req: Request) {
       const timeRangeJson = encodeURIComponent(JSON.stringify({ since: sinceStr, until: untilStr }));
 
       // 2.A Chart Data: level=account with time_increment=1
-      const fbUrlDaily = `https://graph.facebook.com/v20.0/${adAccountId}/insights?level=account&fields=spend&time_range=${timeRangeJson}&time_increment=1&access_token=${metaToken}`;
+      const fbUrlDaily = `https://graph.facebook.com/v20.0/${adAccountId}/insights?level=account&fields=spend&time_range=${timeRangeJson}&time_increment=1&limit=1000&access_token=${metaToken}`;
+
       
       // 2.B Table Data: level=ad (no time_increment - Meta aggregates unique clicks correctly)
       const fbUrlAds = `https://graph.facebook.com/v20.0/${adAccountId}/insights?level=ad&fields=campaign_id,campaign_name,adset_id,adset_name,ad_id,ad_name,spend,impressions,inline_link_clicks,unique_inline_link_clicks,actions&time_range=${timeRangeJson}&limit=1000&access_token=${metaToken}`;
