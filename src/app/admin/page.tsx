@@ -81,7 +81,7 @@ export default function AdminDashboard() {
   const formatCurrency = (val: number) => new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(val);
   const formatNum = (val: number) => new Intl.NumberFormat('pt-BR').format(val || 0);
   const formatDate = (isoStr: string) => {
-    const d = new Date(isoStr); d.setHours(d.getHours() - 3);
+    const d = new Date(isoStr);
     return d.toLocaleString('pt-BR', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' });
   };
 
