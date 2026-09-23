@@ -110,7 +110,7 @@ export async function POST(request: Request) {
           await new Promise(r => setTimeout(r, 1500));
           
           // 3. Dispara o Upsell
-          const msgUpsell = `Aproveitando, deixa eu te fazer uma pergunta rápida...\n\nMuitas meninas têm dificuldade em calcular o preço das receitas e acabam perdendo dinheiro no final do mês.\n\nEu tenho o *Pack Lucratividade Garantida* (com Guias e Checklists) que resolve isso na hora. Ele custa originalmente *R$ 47,00*, mas como você acabou de se tornar aluna, posso liberar o acesso para você agora por apenas *+ R$ 11,90*.\n\nQuer aproveitar esse mega desconto e fazer um Pix de R$ 11,90 para levar o Pack também?\nDigite 1 para SIM\nDigite 2 para NÃO`;
+          const msgUpsell = `Aproveitando, deixa eu te fazer uma pergunta rápida...\n\nMuitas alunas têm dificuldade na hora de calcular o preço das receitas e acelerar as vendas no início.\n\nEu tenho o *Pack Lucratividade Garantida* com *41 Vídeo Aulas Práticas (passo a passo)* + Guias e Checklists de Precificação.\n\nEle custa originalmente *R$ 47,00*, mas como você acabou de se tornar aluna, posso liberar o acesso completo para você agora por apenas *+ R$ 11,90*.\n\nQuer aproveitar esse mega desconto e levar as *41 Vídeo Aulas* por R$ 11,90?\nDigite 1 para SIM\nDigite 2 para NÃO`;
           await sendWameText(phone, msgUpsell);
 
           return NextResponse.json({ success: true, message: 'Upsell via WA disparado.' }, { status: 200 });
