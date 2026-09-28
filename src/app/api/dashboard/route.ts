@@ -110,7 +110,7 @@ export async function GET(req: Request) {
       const date = row.date_start;
       const gastoBruto = parseFloat(row.spend || '0');
       const gastoReal = gastoBruto * 1.1383; // Imposto Meta
-      if (!dailyStats[date]) dailyStats[date] = { date, gasto: 0, receita: 0, vendas: 0, orderBumps: 0 };
+      if (!dailyStats[date]) dailyStats[date] = { date, gasto: 0, receita: 0, vendas: 0, orderBumps: 0, buyers: new Set(), obRevenue: 0, pixRevenue: 0 };
       dailyStats[date].gasto += gastoReal;
     });
 
@@ -202,16 +202,39 @@ export async function GET(req: Request) {
       const date = localDate.toISOString().split('T')[0];
       
       const valor = parseFloat(venda.valor || '0');
+      const nomeProduto = (venda.nome_produto || '').toLowerCase();
+      
       const isOrderBump = valor > 10.00;
+      
+      // Determine what to split
+      let isPackOnly = nomeProduto.includes('pack') && !nomeProduto.includes('combo');
+      let isCombo = (nomeProduto.includes('combo') || valor > 12.00) && !isPackOnly;
+      
+      let obVal = 0;
+      let pixVal = 0;
+      
+      if (isCombo) {
+        pixVal = 8.51; 
+        obVal = valor - 8.51;
+      } else if (isPackOnly || isOrderBump) {
+        // standalone OB
+        obVal = valor;
+      } else {
+        // main product
+        pixVal = valor;
+      }
 
       totalReceita += valor;
       totalVendasGlobais += 1;
-      if (isOrderBump) totalOrderBumps += 1;
+      if (isOrderBump || isPackOnly) totalOrderBumps += 1;
 
-      if (!dailyStats[date]) dailyStats[date] = { date, gasto: 0, receita: 0, vendas: 0, orderBumps: 0 };
+      if (!dailyStats[date]) dailyStats[date] = { date, gasto: 0, receita: 0, vendas: 0, orderBumps: 0, buyers: new Set(), obRevenue: 0, pixRevenue: 0 };
       dailyStats[date].receita += valor;
       dailyStats[date].vendas += 1;
-      if (isOrderBump) dailyStats[date].orderBumps += 1;
+      if (isOrderBump || isPackOnly) dailyStats[date].orderBumps += 1;
+      if (venda.telefone) dailyStats[date].buyers.add(venda.telefone);
+      dailyStats[date].obRevenue += obVal;
+      dailyStats[date].pixRevenue += pixVal;
 
       // UTM Extraction
       const cId = extractTRK(venda.utm_campaign);
@@ -292,7 +315,11 @@ export async function GET(req: Request) {
 
     const chartData = Object.values(dailyStats);
     chartData.sort((a: any, b: any) => a.date.localeCompare(b.date));
-    chartData.forEach((stat: any) => stat.lucro = stat.receita - stat.gasto);
+    chartData.forEach((stat: any) => {
+      stat.lucro = stat.receita - stat.gasto;
+      stat.buyersCount = stat.buyers ? stat.buyers.size : 0;
+      delete stat.buyers;
+    });
 
     const recoveryStats = {
       totalLeads: leads.length,

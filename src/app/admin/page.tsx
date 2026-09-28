@@ -185,6 +185,9 @@ export default function AdminDashboard() {
           <button onClick={() => setActiveTab('raw')} className={`w-full flex items-center gap-3 px-4 py-3 rounded-lg font-medium transition-colors ${activeTab === 'raw' ? 'bg-indigo-600 text-white' : 'hover:bg-slate-800 hover:text-white'}`}>
             <TableIcon className="w-5 h-5" /> Vendas Brutas
           </button>
+          <button onClick={() => setActiveTab('monthly')} className={`w-full flex items-center gap-3 px-4 py-3 rounded-lg font-medium transition-colors ${activeTab === 'monthly' ? 'bg-indigo-600 text-white' : 'hover:bg-slate-800 hover:text-white'}`}>
+            <Calendar className="w-5 h-5" /> Planilha Mensal
+          </button>
         </nav>
       </aside>
 
@@ -197,6 +200,7 @@ export default function AdminDashboard() {
               {activeTab === 'overview' && 'Visão Geral Executiva'}
               {activeTab === 'campaigns' && 'Otimização de Tráfego Avançada'}
               {activeTab === 'raw' && 'Histórico de Vendas (Bruto)'}
+              {activeTab === 'monthly' && 'Planilha Mensal'}
             </h2>
           </div>
           
@@ -360,6 +364,100 @@ export default function AdminDashboard() {
                           <td className="p-4 text-right font-bold text-green-600">{formatCurrency(venda.valor)}</td>
                         </tr>
                       ))}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            )}
+
+            {activeTab === 'monthly' && (
+              <div className="p-8 overflow-y-auto w-full">
+                <div className="bg-white rounded-2xl shadow-sm border border-slate-200 overflow-x-auto">
+                  <table className="w-full text-center border-collapse whitespace-nowrap text-sm">
+                    <thead>
+                      <tr className="bg-blue-600 text-white font-bold text-[10px] uppercase tracking-wider">
+                        <th className="p-3 border-r border-blue-500">Observações</th>
+                        <th className="p-3 border-r border-blue-500">Data</th>
+                        <th className="p-3 border-r border-blue-500">Investido</th>
+                        <th className="p-3 border-r border-blue-500">Receita</th>
+                        <th className="p-3 border-r border-blue-500">Lucro Bruto</th>
+                        <th className="p-3 border-r border-blue-500">Compradores</th>
+                        <th className="p-3 border-r border-blue-500">CPA</th>
+                        <th className="p-3 border-r border-blue-500">Ticket Médio</th>
+                        <th className="p-3 border-r border-blue-500">ROI</th>
+                        <th className="p-3 border-r border-blue-500 bg-yellow-400 text-slate-800">Qtde O.B.</th>
+                        <th className="p-3 border-r border-blue-500 bg-yellow-400 text-slate-800">Orderbump</th>
+                        <th className="p-3 bg-yellow-400 text-slate-800">Pix</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {/* GERAL ROW */}
+                      {(() => {
+                        const t = data.chartData.reduce((acc: any, curr: any) => ({
+                          gasto: acc.gasto + curr.gasto,
+                          receita: acc.receita + curr.receita,
+                          lucro: acc.lucro + curr.lucro,
+                          buyersCount: acc.buyersCount + curr.buyersCount,
+                          orderBumps: acc.orderBumps + curr.orderBumps,
+                          obRevenue: acc.obRevenue + curr.obRevenue,
+                          pixRevenue: acc.pixRevenue + curr.pixRevenue
+                        }), { gasto: 0, receita: 0, lucro: 0, buyersCount: 0, orderBumps: 0, obRevenue: 0, pixRevenue: 0 });
+                        
+                        return (
+                          <tr className="bg-slate-200 font-bold text-slate-800 border-b-2 border-slate-300">
+                            <td className="p-3 border-r border-slate-300 text-left">GERAL</td>
+                            <td className="p-3 border-r border-slate-300"></td>
+                            <td className="p-3 border-r border-slate-300">{formatCurrency(t.gasto)}</td>
+                            <td className="p-3 border-r border-slate-300 text-green-700">{formatCurrency(t.receita)}</td>
+                            <td className="p-3 border-r border-slate-300 text-blue-700">{formatCurrency(t.lucro)}</td>
+                            <td className="p-3 border-r border-slate-300">{formatNum(t.buyersCount)}</td>
+                            <td className="p-3 border-r border-slate-300">{formatCurrency(t.buyersCount ? t.gasto/t.buyersCount : 0)}</td>
+                            <td className="p-3 border-r border-slate-300">{formatCurrency(t.buyersCount ? t.receita/t.buyersCount : 0)}</td>
+                            <td className="p-3 border-r border-slate-300">{(t.gasto ? t.receita/t.gasto : 0).toFixed(2)}</td>
+                            <td className="p-3 border-r border-slate-300 bg-yellow-100">{formatNum(t.orderBumps)}</td>
+                            <td className="p-3 border-r border-slate-300 bg-yellow-100">{formatCurrency(t.obRevenue)}</td>
+                            <td className="p-3 bg-yellow-100">{formatCurrency(t.pixRevenue)}</td>
+                          </tr>
+                        );
+                      })()}
+                      
+                      {/* DAILY ROWS */}
+                      {data.chartData.map((stat: any, idx: number) => {
+                        const dateObj = new Date(stat.date + 'T12:00:00Z');
+                        const dateStr = dateObj.toLocaleDateString('pt-BR', { weekday: 'short', day: '2-digit', month: '2-digit', year: '2-digit' }).replace('.',',');
+                        const cpa = stat.buyersCount > 0 ? stat.gasto / stat.buyersCount : 0;
+                        const ticket = stat.buyersCount > 0 ? stat.receita / stat.buyersCount : 0;
+                        const roi = stat.gasto > 0 ? stat.receita / stat.gasto : 0;
+                        
+                        return (
+                          <tr key={idx} className={`hover:bg-slate-50 border-b border-slate-100 transition-colors ${idx % 2 === 0 ? 'bg-white' : 'bg-slate-50/50'}`}>
+                            <td className="p-0 border-r border-slate-200 min-w-[250px]">
+                              <input 
+                                type="text" 
+                                className="w-full h-full bg-transparent px-3 py-2 outline-none text-xs text-slate-600 focus:bg-yellow-50" 
+                                placeholder="Adicionar observação..."
+                                defaultValue={typeof window !== 'undefined' ? localStorage.getItem(`obs_${stat.date}`) || '' : ''}
+                                onBlur={(e) => {
+                                  if (typeof window !== 'undefined') {
+                                    localStorage.setItem(`obs_${stat.date}`, e.target.value);
+                                  }
+                                }}
+                              />
+                            </td>
+                            <td className="p-3 border-r border-slate-200 font-medium text-slate-700">{dateStr}</td>
+                            <td className="p-3 border-r border-slate-200 text-slate-600">{formatCurrency(stat.gasto)}</td>
+                            <td className="p-3 border-r border-slate-200 font-medium text-slate-800">{formatCurrency(stat.receita)}</td>
+                            <td className="p-3 border-r border-slate-200 text-slate-600">{formatCurrency(stat.lucro)}</td>
+                            <td className="p-3 border-r border-slate-200 font-bold text-slate-800">{stat.buyersCount}</td>
+                            <td className="p-3 border-r border-slate-200 text-slate-600">{formatCurrency(cpa)}</td>
+                            <td className="p-3 border-r border-slate-200 text-slate-600">{formatCurrency(ticket)}</td>
+                            <td className={`p-3 border-r border-slate-200 font-bold ${roi >= 2 ? 'bg-green-100 text-green-700' : roi >= 1 ? 'bg-green-50 text-green-600' : 'bg-red-50 text-red-600'}`}>{roi.toFixed(2)}</td>
+                            <td className="p-3 border-r border-slate-200 text-slate-700">{stat.orderBumps > 0 ? `${stat.orderBumps} O.B.` : '-'}</td>
+                            <td className="p-3 border-r border-slate-200 text-slate-700">{stat.obRevenue > 0 ? formatCurrency(stat.obRevenue) : '-'}</td>
+                            <td className="p-3 text-slate-700 font-medium">{stat.pixRevenue > 0 ? formatCurrency(stat.pixRevenue) : '-'}</td>
+                          </tr>
+                        );
+                      })}
                     </tbody>
                   </table>
                 </div>
