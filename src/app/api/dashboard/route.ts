@@ -204,34 +204,37 @@ export async function GET(req: Request) {
       const valor = parseFloat(venda.valor || '0');
       const nomeProduto = (venda.nome_produto || '').toLowerCase();
       
-      const isOrderBump = valor > 10.00;
+      const isOrderBumpProduct = nomeProduto.includes('pack') || nomeProduto.includes('order') || nomeProduto.includes('lucratividade');
+      const isCombo = (nomeProduto.includes('combo') || valor > 12.00) && !isOrderBumpProduct;
       
-      // Determine what to split
-      let isPackOnly = nomeProduto.includes('pack') && !nomeProduto.includes('combo');
-      let isCombo = (nomeProduto.includes('combo') || valor > 12.00) && !isPackOnly;
-      
+      // We still want to count how many OBs were sold total (Celetus + Pix)
+      const countAsOB = isOrderBumpProduct || isCombo || valor > 10.00;
+
       let obVal = 0;
       let pixVal = 0;
       
-      if (isCombo) {
-        pixVal = 8.51; 
-        obVal = valor - 8.51;
-      } else if (isPackOnly || isOrderBump) {
-        // standalone OB
-        obVal = valor;
-      } else {
-        // main product
+      if (venda.utm_medium === 'pix_direto') {
+        // All pix_direto sales go to PIX column
         pixVal = valor;
+      } else {
+        // Celetus sales
+        if (isCombo) {
+          // Combo: extract the OB part
+          obVal = valor - 8.51; // Assuming 8.51 is main product net
+        } else if (isOrderBumpProduct) {
+          // Standalone OB from Celetus
+          obVal = valor;
+        }
       }
 
       totalReceita += valor;
       totalVendasGlobais += 1;
-      if (isOrderBump || isPackOnly) totalOrderBumps += 1;
+      if (countAsOB) totalOrderBumps += 1;
 
       if (!dailyStats[date]) dailyStats[date] = { date, gasto: 0, receita: 0, vendas: 0, orderBumps: 0, buyers: new Set(), obRevenue: 0, pixRevenue: 0 };
       dailyStats[date].receita += valor;
       dailyStats[date].vendas += 1;
-      if (isOrderBump || isPackOnly) dailyStats[date].orderBumps += 1;
+      if (countAsOB) dailyStats[date].orderBumps += 1;
       if (venda.telefone) dailyStats[date].buyers.add(venda.telefone);
       dailyStats[date].obRevenue += obVal;
       dailyStats[date].pixRevenue += pixVal;
