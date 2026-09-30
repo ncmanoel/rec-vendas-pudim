@@ -230,8 +230,21 @@ export async function GET(req: Request) {
 
       dailyStats[date].receita += valor;
       dailyStats[date].vendas += 1;
+      
       const telefone = venda.telefone ? venda.telefone.replace(/\D/g, '') : '';
-      if (telefone) dailyStats[date].buyers.add(telefone);
+      const isMainProduct = !isOBProduct && !isCombo; // Pudim Principal only
+      
+      // Count buyer:
+      // - Celetus: always has a phone → deduplicate by phone
+      // - WA + main product (including combo): count each entry as +1 buyer (no phone available)
+      // - WA + OB only: does NOT count as new buyer (just an upsell to existing buyer)
+      if (telefone) {
+        // Celetus sales always have phone — deduplicate
+        if (isMainProduct || isCombo) dailyStats[date].buyers.add(telefone);
+      } else if (isWA && (isMainProduct || isCombo)) {
+        // WA manual sale without phone — use unique id as buyer key so each sale counts
+        dailyStats[date].buyers.add(`wa_${venda.id}`);
+      }
 
       if (isWA) {
         // All WhatsApp sales go to waRevenue
