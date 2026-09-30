@@ -110,7 +110,13 @@ export async function GET(req: Request) {
       const date = row.date_start;
       const gastoBruto = parseFloat(row.spend || '0');
       const gastoReal = gastoBruto * 1.1383; // Imposto Meta
-      if (!dailyStats[date]) dailyStats[date] = { date, gasto: 0, receita: 0, vendas: 0, orderBumps: 0, buyers: new Set(), obRevenue: 0, pixRevenue: 0 };
+      if (!dailyStats[date]) dailyStats[date] = {
+        date, gasto: 0, receita: 0, vendas: 0,
+        buyers: new Set(),
+        obCountCeletus: 0, obCountWA: 0,
+        obRevenueCeletus: 0, obRevenueWA: 0,
+        waRevenue: 0,
+      };
       dailyStats[date].gasto += gastoReal;
     });
 
@@ -203,43 +209,57 @@ export async function GET(req: Request) {
       
       const valor = parseFloat(venda.valor || '0');
       const nomeProduto = (venda.nome_produto || '').toLowerCase();
+      const isWA = venda.utm_medium === 'pix_direto'; // WhatsApp / Pix manual
       
-      const isOrderBumpProduct = nomeProduto.includes('pack') || nomeProduto.includes('order') || nomeProduto.includes('lucratividade');
-      const isCombo = (nomeProduto.includes('combo') || valor > 12.00) && !isOrderBumpProduct;
-      
-      // We still want to count how many OBs were sold total (Celetus + Pix)
-      const countAsOB = isOrderBumpProduct || isCombo || valor > 10.00;
-
-      let obVal = 0;
-      let pixVal = 0;
-      
-      if (venda.utm_medium === 'pix_direto') {
-        // All pix_direto sales go to PIX column
-        pixVal = valor;
-      } else {
-        // Celetus sales
-        if (isCombo) {
-          // Combo: extract the OB part
-          obVal = valor - 8.51; // Assuming 8.51 is main product net
-        } else if (isOrderBumpProduct) {
-          // Standalone OB from Celetus
-          obVal = valor;
-        }
-      }
+      // Detect OB by product name (works for both Celetus and WA)
+      const isOBProduct = nomeProduto.includes('pack') || nomeProduto.includes('lucratividade') || nomeProduto.includes('order') || nomeProduto.includes('upsell');
+      // Combo = main + OB in a single entry (mainly from legacy/manual)
+      const isCombo = nomeProduto.includes('combo');
 
       totalReceita += valor;
       totalVendasGlobais += 1;
-      if (countAsOB) totalOrderBumps += 1;
 
-      if (!dailyStats[date]) dailyStats[date] = { date, gasto: 0, receita: 0, vendas: 0, orderBumps: 0, buyers: new Set(), obRevenue: 0, pixRevenue: 0 };
+      // Ensure daily slot exists
+      if (!dailyStats[date]) dailyStats[date] = {
+        date, gasto: 0, receita: 0, vendas: 0,
+        buyers: new Set(),
+        obCountCeletus: 0, obCountWA: 0,
+        obRevenueCeletus: 0, obRevenueWA: 0,
+        waRevenue: 0,
+      };
+
       dailyStats[date].receita += valor;
       dailyStats[date].vendas += 1;
-      if (countAsOB) dailyStats[date].orderBumps += 1;
-      if (venda.telefone) dailyStats[date].buyers.add(venda.telefone);
-      dailyStats[date].obRevenue += obVal;
-      dailyStats[date].pixRevenue += pixVal;
+      const telefone = venda.telefone ? venda.telefone.replace(/\D/g, '') : '';
+      if (telefone) dailyStats[date].buyers.add(telefone);
 
-      // UTM Extraction
+      if (isWA) {
+        // All WhatsApp sales go to waRevenue
+        dailyStats[date].waRevenue += valor;
+        if (isOBProduct) {
+          dailyStats[date].obCountWA += 1;
+          dailyStats[date].obRevenueWA += valor;
+          totalOrderBumps += 1;
+        } else if (isCombo) {
+          // Combo via WA: OB portion = valor - 8.51
+          dailyStats[date].obCountWA += 1;
+          dailyStats[date].obRevenueWA += Math.max(0, valor - 8.51);
+          totalOrderBumps += 1;
+        }
+      } else {
+        // Celetus sale
+        if (isOBProduct) {
+          dailyStats[date].obCountCeletus += 1;
+          dailyStats[date].obRevenueCeletus += valor;
+          totalOrderBumps += 1;
+        } else if (isCombo) {
+          dailyStats[date].obCountCeletus += 1;
+          dailyStats[date].obRevenueCeletus += Math.max(0, valor - 8.51);
+          totalOrderBumps += 1;
+        }
+      }
+
+      // UTM Extraction for Drilldown table
       const cId = extractTRK(venda.utm_campaign);
       const sId = extractTRK(venda.utm_medium);
       const aId = extractTRK(venda.utm_content);
@@ -249,24 +269,24 @@ export async function GET(req: Request) {
         const c = campaignMap.get(cId);
         c.receitaCel += valor;
         c.vendasCel += 1;
-        if (isOrderBump) c.orderBumps += 1;
+        if (isOBProduct) c.orderBumps += 1;
       }
       
       if (sId && adsetMap.has(sId)) {
         const s = adsetMap.get(sId);
         s.receitaCel += valor;
         s.vendasCel += 1;
-        if (isOrderBump) s.orderBumps += 1;
+        if (isOBProduct) s.orderBumps += 1;
       }
 
       if (aId && adMap.has(aId)) {
         const a = adMap.get(aId);
         a.receitaCel += valor;
         a.vendasCel += 1;
-        if (isOrderBump) a.orderBumps += 1;
+        if (isOBProduct) a.orderBumps += 1;
       }
 
-      // Orgânico / Desconhecido Bucket fallback se não achou campanha (para que o total da tabela bata com o geral)
+      // Orgânico / Desconhecido Bucket fallback
       if (!cId || !campaignMap.has(cId)) {
         if (!campaignMap.has('ORGANICO')) campaignMap.set('ORGANICO', {
           id: 'ORGANICO', name: 'Orgânico / Sem Rastreio', gasto: 0, impressions: 0, clicks: 0, uniqueClicks: 0,
@@ -275,14 +295,12 @@ export async function GET(req: Request) {
         const org = campaignMap.get('ORGANICO');
         org.receitaCel += valor;
         org.vendasCel += 1;
-        if (isOrderBump) org.orderBumps += 1;
+        if (isOBProduct) org.orderBumps += 1;
       }
 
-      // Recovery Logic
-      if (venda.utm_medium === 'pix_direto') {
-        // Did we have this lead in the abandoned carts?
-        const clnPhone = venda.telefone ? venda.telefone.replace(/\D/g, '') : '';
-        if (clnPhone && leadsPhoneSet.has(clnPhone)) {
+      // Recovery Logic (WhatsApp sales that matched abandoned leads)
+      if (isWA) {
+        if (telefone && leadsPhoneSet.has(telefone)) {
           recoveredSalesCount += 1;
           recoveredSalesRevenue += valor;
         } else {
@@ -321,6 +339,7 @@ export async function GET(req: Request) {
     chartData.forEach((stat: any) => {
       stat.lucro = stat.receita - stat.gasto;
       stat.buyersCount = stat.buyers ? stat.buyers.size : 0;
+      stat.orderBumps = stat.obCountCeletus + stat.obCountWA;
       delete stat.buyers;
     });
 

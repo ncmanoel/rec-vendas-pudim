@@ -206,7 +206,7 @@ export default function AdminDashboard() {
           
           <div className="flex flex-col sm:flex-row items-center gap-4">
             <button onClick={() => setIsModalOpen(true)} className="flex items-center gap-2 bg-green-600 hover:bg-green-500 text-white px-4 py-2 rounded-lg font-bold shadow-sm">
-              <PlusCircle className="w-4 h-4" /> Venda Pix
+              <PlusCircle className="w-4 h-4" /> Venda WhatsApp
             </button>
             <div className="flex flex-wrap items-center gap-2 bg-slate-100 p-1 rounded-lg border border-slate-200">
               <Calendar className="w-4 h-4 text-slate-400 mx-2" />
@@ -375,19 +375,27 @@ export default function AdminDashboard() {
                 <div className="bg-white rounded-2xl shadow-sm border border-slate-200 overflow-x-auto">
                   <table className="w-full text-center border-collapse whitespace-nowrap text-sm">
                     <thead>
+                      {/* Row 1 – Main headers */}
                       <tr className="bg-blue-600 text-white font-bold text-[10px] uppercase tracking-wider">
-                        <th className="p-3 border-r border-blue-500">Observações</th>
-                        <th className="p-3 border-r border-blue-500">Data</th>
-                        <th className="p-3 border-r border-blue-500">Investido</th>
-                        <th className="p-3 border-r border-blue-500">Receita</th>
-                        <th className="p-3 border-r border-blue-500">Lucro Bruto</th>
-                        <th className="p-3 border-r border-blue-500">Compradores</th>
-                        <th className="p-3 border-r border-blue-500">CPA</th>
-                        <th className="p-3 border-r border-blue-500">Ticket Médio</th>
-                        <th className="p-3 border-r border-blue-500">ROI</th>
-                        <th className="p-3 border-r border-blue-500 bg-yellow-400 text-slate-800">Qtde O.B.</th>
-                        <th className="p-3 border-r border-blue-500 bg-yellow-400 text-slate-800">Orderbump</th>
-                        <th className="p-3 bg-yellow-400 text-slate-800">Pix</th>
+                        <th rowSpan={2} className="p-3 border-r border-b border-blue-500 align-middle">Observações</th>
+                        <th rowSpan={2} className="p-3 border-r border-b border-blue-500 align-middle">Data</th>
+                        <th rowSpan={2} className="p-3 border-r border-b border-blue-500 align-middle">Investido</th>
+                        <th rowSpan={2} className="p-3 border-r border-b border-blue-500 align-middle">Receita</th>
+                        <th rowSpan={2} className="p-3 border-r border-b border-blue-500 align-middle">Lucro Bruto</th>
+                        <th rowSpan={2} className="p-3 border-r border-b border-blue-500 align-middle">Compradores</th>
+                        <th rowSpan={2} className="p-3 border-r border-b border-blue-500 align-middle">CPA</th>
+                        <th rowSpan={2} className="p-3 border-r border-b border-blue-500 align-middle">Ticket Médio</th>
+                        <th rowSpan={2} className="p-3 border-r border-b border-blue-500 align-middle">ROI</th>
+                        <th colSpan={2} className="p-2 border-r border-b border-yellow-500 bg-yellow-400 text-slate-800">Qtde O.B.</th>
+                        <th colSpan={2} className="p-2 border-r border-b border-yellow-500 bg-yellow-500 text-slate-800">Valor O.B.</th>
+                        <th rowSpan={2} className="p-3 border-b border-green-600 bg-green-500 text-white align-middle">Venda WA</th>
+                      </tr>
+                      {/* Row 2 – OB sub-headers */}
+                      <tr className="bg-yellow-50 text-slate-700 text-[10px] font-bold uppercase tracking-wider border-b border-slate-300">
+                        <th className="p-2 border-r border-yellow-300 bg-yellow-100">Cel.</th>
+                        <th className="p-2 border-r border-yellow-300 bg-yellow-100">WA</th>
+                        <th className="p-2 border-r border-yellow-400 bg-yellow-200">Cel.</th>
+                        <th className="p-2 border-r border-yellow-400 bg-yellow-200">WA</th>
                       </tr>
                     </thead>
                     <tbody>
@@ -398,25 +406,29 @@ export default function AdminDashboard() {
                           receita: acc.receita + curr.receita,
                           lucro: acc.lucro + curr.lucro,
                           buyersCount: acc.buyersCount + curr.buyersCount,
-                          orderBumps: acc.orderBumps + curr.orderBumps,
-                          obRevenue: acc.obRevenue + curr.obRevenue,
-                          pixRevenue: acc.pixRevenue + curr.pixRevenue
-                        }), { gasto: 0, receita: 0, lucro: 0, buyersCount: 0, orderBumps: 0, obRevenue: 0, pixRevenue: 0 });
+                          obCountCeletus: acc.obCountCeletus + curr.obCountCeletus,
+                          obCountWA: acc.obCountWA + curr.obCountWA,
+                          obRevenueCeletus: acc.obRevenueCeletus + curr.obRevenueCeletus,
+                          obRevenueWA: acc.obRevenueWA + curr.obRevenueWA,
+                          waRevenue: acc.waRevenue + curr.waRevenue,
+                        }), { gasto: 0, receita: 0, lucro: 0, buyersCount: 0, obCountCeletus: 0, obCountWA: 0, obRevenueCeletus: 0, obRevenueWA: 0, waRevenue: 0 });
                         
                         return (
-                          <tr className="bg-slate-200 font-bold text-slate-800 border-b-2 border-slate-300">
+                          <tr className="bg-slate-200 font-bold text-slate-800 border-b-2 border-slate-300 text-xs">
                             <td className="p-3 border-r border-slate-300 text-left">GERAL</td>
                             <td className="p-3 border-r border-slate-300"></td>
                             <td className="p-3 border-r border-slate-300">{formatCurrency(t.gasto)}</td>
                             <td className="p-3 border-r border-slate-300 text-green-700">{formatCurrency(t.receita)}</td>
-                            <td className="p-3 border-r border-slate-300 text-blue-700">{formatCurrency(t.lucro)}</td>
+                            <td className={`p-3 border-r border-slate-300 ${t.lucro >= 0 ? 'text-blue-700' : 'text-red-700'}`}>{formatCurrency(t.lucro)}</td>
                             <td className="p-3 border-r border-slate-300">{formatNum(t.buyersCount)}</td>
                             <td className="p-3 border-r border-slate-300">{formatCurrency(t.buyersCount ? t.gasto/t.buyersCount : 0)}</td>
                             <td className="p-3 border-r border-slate-300">{formatCurrency(t.buyersCount ? t.receita/t.buyersCount : 0)}</td>
                             <td className="p-3 border-r border-slate-300">{(t.gasto ? t.receita/t.gasto : 0).toFixed(2)}</td>
-                            <td className="p-3 border-r border-slate-300 bg-yellow-100">{formatNum(t.orderBumps)}</td>
-                            <td className="p-3 border-r border-slate-300 bg-yellow-100">{formatCurrency(t.obRevenue)}</td>
-                            <td className="p-3 bg-yellow-100">{formatCurrency(t.pixRevenue)}</td>
+                            <td className="p-3 border-r border-slate-300 bg-yellow-100">{t.obCountCeletus > 0 ? t.obCountCeletus : '-'}</td>
+                            <td className="p-3 border-r border-slate-300 bg-yellow-100">{t.obCountWA > 0 ? t.obCountWA : '-'}</td>
+                            <td className="p-3 border-r border-slate-300 bg-yellow-200">{t.obRevenueCeletus > 0 ? formatCurrency(t.obRevenueCeletus) : '-'}</td>
+                            <td className="p-3 border-r border-slate-300 bg-yellow-200">{t.obRevenueWA > 0 ? formatCurrency(t.obRevenueWA) : '-'}</td>
+                            <td className="p-3 bg-green-100 text-green-800">{t.waRevenue > 0 ? formatCurrency(t.waRevenue) : '-'}</td>
                           </tr>
                         );
                       })()}
@@ -430,12 +442,12 @@ export default function AdminDashboard() {
                         const roi = stat.gasto > 0 ? stat.receita / stat.gasto : 0;
                         
                         return (
-                          <tr key={idx} className={`hover:bg-slate-50 border-b border-slate-100 transition-colors ${idx % 2 === 0 ? 'bg-white' : 'bg-slate-50/50'}`}>
-                            <td className="p-0 border-r border-slate-200 min-w-[250px]">
+                          <tr key={idx} className={`hover:bg-slate-50 border-b border-slate-100 transition-colors text-xs ${idx % 2 === 0 ? 'bg-white' : 'bg-slate-50/50'}`}>
+                            <td className="p-0 border-r border-slate-200 min-w-[220px]">
                               <input 
                                 type="text" 
                                 className="w-full h-full bg-transparent px-3 py-2 outline-none text-xs text-slate-600 focus:bg-yellow-50" 
-                                placeholder="Adicionar observação..."
+                                placeholder="Observação..."
                                 defaultValue={typeof window !== 'undefined' ? localStorage.getItem(`obs_${stat.date}`) || '' : ''}
                                 onBlur={(e) => {
                                   if (typeof window !== 'undefined') {
@@ -445,16 +457,18 @@ export default function AdminDashboard() {
                               />
                             </td>
                             <td className="p-3 border-r border-slate-200 font-medium text-slate-700">{dateStr}</td>
-                            <td className="p-3 border-r border-slate-200 text-slate-600">{formatCurrency(stat.gasto)}</td>
+                            <td className="p-3 border-r border-slate-200 text-slate-600">{stat.gasto > 0 ? formatCurrency(stat.gasto) : '-'}</td>
                             <td className="p-3 border-r border-slate-200 font-medium text-slate-800">{formatCurrency(stat.receita)}</td>
-                            <td className="p-3 border-r border-slate-200 text-slate-600">{formatCurrency(stat.lucro)}</td>
-                            <td className="p-3 border-r border-slate-200 font-bold text-slate-800">{stat.buyersCount}</td>
-                            <td className="p-3 border-r border-slate-200 text-slate-600">{formatCurrency(cpa)}</td>
-                            <td className="p-3 border-r border-slate-200 text-slate-600">{formatCurrency(ticket)}</td>
-                            <td className={`p-3 border-r border-slate-200 font-bold ${roi >= 2 ? 'bg-green-100 text-green-700' : roi >= 1 ? 'bg-green-50 text-green-600' : 'bg-red-50 text-red-600'}`}>{roi.toFixed(2)}</td>
-                            <td className="p-3 border-r border-slate-200 text-slate-700">{stat.orderBumps > 0 ? `${stat.orderBumps} O.B.` : '-'}</td>
-                            <td className="p-3 border-r border-slate-200 text-slate-700">{stat.obRevenue > 0 ? formatCurrency(stat.obRevenue) : '-'}</td>
-                            <td className="p-3 text-slate-700 font-medium">{stat.pixRevenue > 0 ? formatCurrency(stat.pixRevenue) : '-'}</td>
+                            <td className={`p-3 border-r border-slate-200 font-medium ${stat.lucro >= 0 ? 'text-slate-700' : 'text-red-600'}`}>{formatCurrency(stat.lucro)}</td>
+                            <td className="p-3 border-r border-slate-200 font-bold text-slate-800">{stat.buyersCount || '-'}</td>
+                            <td className="p-3 border-r border-slate-200 text-slate-600">{stat.buyersCount > 0 ? formatCurrency(cpa) : '-'}</td>
+                            <td className="p-3 border-r border-slate-200 text-slate-600">{stat.buyersCount > 0 ? formatCurrency(ticket) : '-'}</td>
+                            <td className={`p-3 border-r border-slate-200 font-bold ${roi >= 2 ? 'bg-green-100 text-green-700' : roi >= 1 ? 'bg-green-50 text-green-600' : stat.gasto > 0 ? 'bg-red-50 text-red-600' : ''}`}>{stat.gasto > 0 ? roi.toFixed(2) : '-'}</td>
+                            <td className="p-3 border-r border-slate-200 text-slate-700 bg-yellow-50">{stat.obCountCeletus > 0 ? stat.obCountCeletus : '-'}</td>
+                            <td className="p-3 border-r border-slate-200 text-slate-700 bg-yellow-50">{stat.obCountWA > 0 ? stat.obCountWA : '-'}</td>
+                            <td className="p-3 border-r border-slate-200 text-slate-700 bg-yellow-100">{stat.obRevenueCeletus > 0 ? formatCurrency(stat.obRevenueCeletus) : '-'}</td>
+                            <td className="p-3 border-r border-slate-200 text-slate-700 bg-yellow-100">{stat.obRevenueWA > 0 ? formatCurrency(stat.obRevenueWA) : '-'}</td>
+                            <td className="p-3 text-green-700 font-medium bg-green-50">{stat.waRevenue > 0 ? formatCurrency(stat.waRevenue) : '-'}</td>
                           </tr>
                         );
                       })}
@@ -471,7 +485,7 @@ export default function AdminDashboard() {
           <div className="fixed inset-0 bg-slate-900/50 backdrop-blur-sm flex items-center justify-center p-4 z-50">
             <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md overflow-hidden">
               <div className="p-6 border-b border-slate-100 flex justify-between items-center bg-slate-50">
-                <h3 className="text-lg font-bold text-slate-800 flex items-center gap-2"><DollarSign className="w-5 h-5 text-green-600" />Registrar Venda Pix</h3>
+                <h3 className="text-lg font-bold text-slate-800 flex items-center gap-2"><DollarSign className="w-5 h-5 text-green-600" />Registrar Venda WhatsApp</h3>
                 <button onClick={() => setIsModalOpen(false)} className="text-slate-400 hover:text-slate-600"><X className="w-5 h-5" /></button>
               </div>
               <form onSubmit={submitManualSale} className="p-6 space-y-4">
