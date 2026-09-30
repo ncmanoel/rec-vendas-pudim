@@ -214,7 +214,10 @@ export async function GET(req: Request) {
       // Detect OB by product name (works for both Celetus and WA)
       const isOBProduct = nomeProduto.includes('pack') || nomeProduto.includes('lucratividade') || nomeProduto.includes('order') || nomeProduto.includes('upsell');
       // Combo = main + OB in a single entry (mainly from legacy/manual)
-      const isCombo = nomeProduto.includes('combo');
+      // Also catches edge case where Celetus sends main product name but with combo price (~18.64)
+      const isComboByName = nomeProduto.includes('combo');
+      const isComboByValue = !isOBProduct && valor > 15 && valor < 25; // combo range: ~17.90 to ~21.90
+      const isCombo = isComboByName || isComboByValue;
 
       totalReceita += valor;
       totalVendasGlobais += 1;
