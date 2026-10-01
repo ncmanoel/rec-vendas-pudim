@@ -211,13 +211,15 @@ export async function GET(req: Request) {
       const nomeProduto = (venda.nome_produto || '').toLowerCase();
       const isWA = venda.utm_medium === 'pix_direto'; // WhatsApp / Pix manual
       
-      // Detect OB by product name (works for both Celetus and WA)
-      const isOBProduct = nomeProduto.includes('pack') || nomeProduto.includes('lucratividade') || nomeProduto.includes('order') || nomeProduto.includes('upsell');
-      // Combo = main + OB in a single entry (mainly from legacy/manual)
-      // Also catches edge case where Celetus sends main product name but with combo price (~18.64)
-      const isComboByName = nomeProduto.includes('combo');
-      const isComboByValue = !isOBProduct && valor > 15 && valor < 25; // combo range: ~17.90 to ~21.90
-      const isCombo = isComboByName || isComboByValue;
+      const isOBByName = nomeProduto.includes('pack') || nomeProduto.includes('lucratividade') || nomeProduto.includes('order') || nomeProduto.includes('upsell');
+      const isComboPrice = valor > 15 && valor < 25; // combo range: ~17.90 to ~21.90
+      
+      // A sale is a combo if it explicitly says combo OR if it has the combo price.
+      // (Celetus legacy sometimes sends the combo price under the OB name or the Main name)
+      const isCombo = nomeProduto.includes('combo') || isComboPrice;
+      
+      // It's a pure OB only if it has an OB name AND is not a combo price
+      const isOBProduct = isOBByName && !isCombo;
 
       totalReceita += valor;
       totalVendasGlobais += 1;
