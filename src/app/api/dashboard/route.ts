@@ -211,14 +211,17 @@ export async function GET(req: Request) {
       const nomeProduto = (venda.nome_produto || '').toLowerCase();
       const isWA = venda.utm_medium === 'pix_direto'; // WhatsApp / Pix manual
       
+      // Detect OB by product name (works for both Celetus and WA)
       const isOBByName = nomeProduto.includes('pack') || nomeProduto.includes('lucratividade') || nomeProduto.includes('order') || nomeProduto.includes('upsell');
-      const isComboPrice = valor > 15 && valor < 25; // combo range: ~17.90 to ~21.90
       
-      // A sale is a combo if it explicitly says combo OR if it has the combo price.
-      // (Celetus legacy sometimes sends the combo price under the OB name or the Main name)
-      const isCombo = nomeProduto.includes('combo') || isComboPrice;
+      // Celetus legacy combo detection (Main product name but with combo price ~18.64)
+      // We ONLY apply this to non-WA sales, because WA sales are manual and might legitimately be R$ 20 for 2 units, etc.
+      const isCeletusLegacyComboPrice = !isWA && (valor > 15 && valor < 25);
       
-      // It's a pure OB only if it has an OB name AND is not a combo price
+      // A sale is a combo if it explicitly says combo OR if it has the Celetus legacy combo price
+      const isCombo = nomeProduto.includes('combo') || isCeletusLegacyComboPrice;
+      
+      // It's a pure OB only if it has an OB name AND is not a combo
       const isOBProduct = isOBByName && !isCombo;
 
       totalReceita += valor;
@@ -259,9 +262,9 @@ export async function GET(req: Request) {
           dailyStats[date].obRevenueWA += valor;
           totalOrderBumps += 1;
         } else if (isCombo) {
-          // Combo via WA: OB portion = valor - 8.51
+          // Combo via WA: Base product is R$ 10.00. OB portion = valor - 10.00
           dailyStats[date].obCountWA += 1;
-          dailyStats[date].obRevenueWA += Math.max(0, valor - 8.51);
+          dailyStats[date].obRevenueWA += Math.max(0, valor - 10);
           totalOrderBumps += 1;
         }
       } else {
@@ -287,21 +290,21 @@ export async function GET(req: Request) {
         const c = campaignMap.get(cId);
         c.receitaCel += valor;
         c.vendasCel += 1;
-        if (isOBProduct) c.orderBumps += 1;
+        if (isOBProduct || isCombo) c.orderBumps += 1;
       }
       
       if (sId && adsetMap.has(sId)) {
         const s = adsetMap.get(sId);
         s.receitaCel += valor;
         s.vendasCel += 1;
-        if (isOBProduct) s.orderBumps += 1;
+        if (isOBProduct || isCombo) s.orderBumps += 1;
       }
 
       if (aId && adMap.has(aId)) {
         const a = adMap.get(aId);
         a.receitaCel += valor;
         a.vendasCel += 1;
-        if (isOBProduct) a.orderBumps += 1;
+        if (isOBProduct || isCombo) a.orderBumps += 1;
       }
 
       // Orgânico / Desconhecido Bucket fallback
@@ -313,7 +316,7 @@ export async function GET(req: Request) {
         const org = campaignMap.get('ORGANICO');
         org.receitaCel += valor;
         org.vendasCel += 1;
-        if (isOBProduct) org.orderBumps += 1;
+        if (isOBProduct || isCombo) org.orderBumps += 1;
       }
 
       // Recovery Logic (WhatsApp sales that matched abandoned leads)
