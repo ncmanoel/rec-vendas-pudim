@@ -29,7 +29,7 @@ export default function AdminDashboard() {
     const d = new Date(); d.setHours(d.getHours() - 3); return d.toISOString().slice(0, 16);
   };
 
-  const [saleForm, setSaleForm] = useState({ date: getLocalNow(), product: 'Pudim sem Forno (Principal)', value: '10.00', phone: '' });
+  const [saleForm, setSaleForm] = useState({ date: getLocalNow(), name: '', product: 'Pudim sem Forno (Principal)', value: '10.00', phone: '' });
 
   const handleProductSelect = (e: React.ChangeEvent<HTMLSelectElement>) => {
     const prod = e.target.value;
@@ -51,7 +51,7 @@ export default function AdminDashboard() {
       const json = await res.json();
       if (json.success) {
         setIsModalOpen(false);
-        setSaleForm({ date: getLocalNow(), product: 'Pudim sem Forno (Principal)', value: '10.00', phone: '' });
+        setSaleForm({ date: getLocalNow(), name: '', product: 'Pudim sem Forno (Principal)', value: '10.00', phone: '' });
         fetchData(period, password, customStart, customEnd);
       } else alert('Erro: ' + (json.error || 'Falha ao registrar venda'));
     } catch (err) { alert('Erro na requisição'); } finally { setIsSubmitting(false); }
@@ -497,6 +497,7 @@ export default function AdminDashboard() {
                   </select>
                 </div>
                 <div><label className="block text-sm font-medium mb-1">Valor Líquido (R$)</label><input type="number" step="0.01" value={saleForm.value} onChange={(e) => setSaleForm({...saleForm, value: e.target.value})} className="w-full p-2.5 border rounded-lg" required /></div>
+                <div><label className="block text-sm font-medium mb-1">Nome do Cliente / Lead</label><input type="text" placeholder="Ex: Maria da Silva" value={saleForm.name} onChange={(e) => setSaleForm({...saleForm, name: e.target.value})} className="w-full p-2.5 border rounded-lg" /></div>
                 <div><label className="block text-sm font-medium mb-1">Telefone (Formato Whatsapp com DDI)</label><input type="text" placeholder="5511999999999" value={saleForm.phone} onChange={(e) => setSaleForm({...saleForm, phone: e.target.value})} className="w-full p-2.5 border rounded-lg" /></div>
                 <div className="pt-4 flex gap-3"><button type="button" onClick={() => setIsModalOpen(false)} className="flex-1 border rounded-lg">Cancelar</button><button type="submit" disabled={isSubmitting} className="flex-1 bg-green-600 text-white rounded-lg py-2.5 font-bold">Salvar Venda</button></div>
               </form>

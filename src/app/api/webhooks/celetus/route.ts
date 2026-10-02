@@ -82,6 +82,7 @@ export async function POST(request: Request) {
         // NOVIDADE: Inserir a venda na tabela vendas do Supabase com rastreio UTM e VALOR LÍQUIDO
         await supabase.from('vendas').insert({
           telefone: phone,
+          nome_cliente: firstName,
           nome_produto: productName,
           valor: netValue,
           utm_campaign: payload.trackingParameters?.utm_campaign || payload.utm_campaign || payload.tracking?.utm_campaign || payload.checkout_tracking?.utm_campaign || null,

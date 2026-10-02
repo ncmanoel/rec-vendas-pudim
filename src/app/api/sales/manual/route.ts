@@ -8,7 +8,7 @@ export async function POST(req: Request) {
     const supabase = createClient(supabaseUrl, supabaseKey);
 
     const body = await req.json();
-    const { password, phone, product, value, date } = body;
+    const { password, phone, name, product, value, date } = body;
 
     if (password !== 'Atletico2000') {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
@@ -20,6 +20,7 @@ export async function POST(req: Request) {
 
     const { error: insertError } = await supabase.from('vendas').insert({
       telefone: phone ? phone.replace(/\D/g, '') : null,
+      nome_cliente: name ? name.trim() : null,
       nome_produto: product,
       valor: parseFloat(value),
       data_venda: isoDate,
