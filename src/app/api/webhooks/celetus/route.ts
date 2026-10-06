@@ -76,8 +76,22 @@ export async function POST(request: Request) {
         // Verifica se comprou o Order Bump baseado no totalPrice
         const totalPrice = payload.commission?.totalPrice || parseFloat(payload.charge?.amount || "0");
         
-        // Pega o valor líquido para inserir no banco de dados (o que cai no bolso)
-        const netValue = payload.commission?.value ? parseFloat(payload.commission.value) : (totalPrice * 0.851);
+        // Pega o valor líquido REAL (o que cai no bolso).
+        // O campo correto da Celetus é commission.userCommission (ex: 18.83 para combo).
+        // Celetus cobra: 4,9% por produto + R$ 1,00 por produto
+        // Fallback: calcula com base nos items individuais se userCommission não vier
+        const userCommission = payload.commission?.userCommission;
+        let netValue: number;
+        if (userCommission !== undefined && userCommission !== null) {
+          netValue = parseFloat(String(userCommission));
+        } else {
+          // Fallback: totalPrice menos as taxas calculadas item a item
+          const items = payload.items || [];
+          const totalFee = items.reduce((acc: number, item: { amount: number }) => {
+            return acc + (item.amount * 0.049) + 1.00;
+          }, 0);
+          netValue = totalPrice - totalFee;
+        }
 
         // NOVIDADE: Inserir a venda na tabela vendas do Supabase com rastreio UTM e VALOR LÍQUIDO
         await supabase.from('vendas').insert({
