@@ -2,7 +2,7 @@
 
 import { useState, useEffect, Fragment } from 'react';
 import { AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend } from 'recharts';
-import { DollarSign, MousePointerClick, TrendingUp, ShoppingCart, Percent, AlertCircle, Calendar, LayoutDashboard, Megaphone, Table as TableIcon, PlusCircle, X, ChevronRight, ChevronDown, Activity, Users } from 'lucide-react';
+import { DollarSign, MousePointerClick, TrendingUp, ShoppingCart, Percent, AlertCircle, Calendar, LayoutDashboard, Megaphone, Table as TableIcon, PlusCircle, X, ChevronRight, ChevronDown, Activity, Users, Pencil, Trash2 } from 'lucide-react';
 
 export default function AdminDashboard() {
   const [password, setPassword] = useState('');
@@ -55,6 +55,74 @@ export default function AdminDashboard() {
         fetchData(period, password, customStart, customEnd);
       } else alert('Erro: ' + (json.error || 'Falha ao registrar venda'));
     } catch (err) { alert('Erro na requisição'); } finally { setIsSubmitting(false); }
+  };
+
+  const [editModalOpen, setEditModalOpen] = useState(false);
+  const [editingSale, setEditingSale] = useState<any>(null);
+  const [editForm, setEditForm] = useState({ id: '', name: '', product: '', value: '', phone: '' });
+
+  const openEditModal = (venda: any) => {
+    setEditingSale(venda);
+    setEditForm({
+      id: venda.id,
+      name: venda.nome_cliente || '',
+      product: venda.nome_produto || '',
+      value: String(venda.valor || '0.00'),
+      phone: venda.telefone || ''
+    });
+    setEditModalOpen(true);
+  };
+
+  const submitEditSale = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setIsSubmitting(true);
+    try {
+      const res = await fetch(`/api/sales/${editForm.id}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          password,
+          id: editForm.id,
+          nome_cliente: editForm.name,
+          nome_produto: editForm.product,
+          valor: editForm.value,
+          telefone: editForm.phone
+        })
+      });
+      const json = await res.json();
+      if (json.success) {
+        setEditModalOpen(false);
+        fetchData(period, password, customStart, customEnd);
+      } else {
+        alert('Erro: ' + (json.error || 'Falha ao atualizar venda'));
+      }
+    } catch (err) {
+      alert('Erro na requisição');
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
+  const handleDeleteSale = async (venda: any) => {
+    const nome = venda.nome_cliente ? ` de ${venda.nome_cliente}` : '';
+    const confirmDelete = window.confirm(`Tem certeza que deseja excluir esta venda${nome} (${venda.nome_produto} - R$ ${venda.valor})?`);
+    if (!confirmDelete) return;
+
+    try {
+      const res = await fetch(`/api/sales/${venda.id}`, {
+        method: 'DELETE',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ password, id: venda.id })
+      });
+      const json = await res.json();
+      if (json.success) {
+        fetchData(period, password, customStart, customEnd);
+      } else {
+        alert('Erro: ' + (json.error || 'Falha ao excluir venda'));
+      }
+    } catch (err) {
+      alert('Erro na requisição');
+    }
   };
 
   const fetchData = async (days: string, pwd = password, start = customStart, end = customEnd) => {
@@ -348,20 +416,41 @@ export default function AdminDashboard() {
                     <thead>
                       <tr className="bg-slate-900 text-white text-sm">
                         <th className="p-4 font-semibold">Data da Venda (Local)</th>
+                        <th className="p-4 font-semibold">Cliente</th>
                         <th className="p-4 font-semibold">Produto</th>
                         <th className="p-4 font-semibold">Telefone</th>
                         <th className="p-4 font-semibold">Origem (UTM)</th>
                         <th className="p-4 font-semibold text-right">Líquido (R$)</th>
+                        <th className="p-4 font-semibold text-center">Ações</th>
                       </tr>
                     </thead>
                     <tbody className="text-sm divide-y divide-slate-100">
                       {data.rawSales?.map((venda: any, idx: number) => (
                         <tr key={idx} className="hover:bg-slate-50 transition-colors">
                           <td className="p-4 font-medium text-slate-700">{formatDate(venda.data_venda)}</td>
+                          <td className="p-4 font-medium text-slate-800">{venda.nome_cliente || <span className="text-slate-400 italic">Não informado</span>}</td>
                           <td className="p-4 text-slate-600">{venda.nome_produto}</td>
                           <td className="p-4 font-mono text-slate-500">+{venda.telefone}</td>
                           <td className="p-4 text-slate-500 text-xs">{venda.utm_campaign || 'Orgânico'}</td>
                           <td className="p-4 text-right font-bold text-green-600">{formatCurrency(venda.valor)}</td>
+                          <td className="p-4 text-center">
+                            <div className="flex items-center justify-center gap-2">
+                              <button
+                                onClick={() => openEditModal(venda)}
+                                title="Editar Venda"
+                                className="p-1.5 text-blue-600 hover:text-blue-800 hover:bg-blue-50 rounded-lg transition-colors"
+                              >
+                                <Pencil className="w-4 h-4" />
+                              </button>
+                              <button
+                                onClick={() => handleDeleteSale(venda)}
+                                title="Excluir Venda"
+                                className="p-1.5 text-red-500 hover:text-red-700 hover:bg-red-50 rounded-lg transition-colors"
+                              >
+                                <Trash2 className="w-4 h-4" />
+                              </button>
+                            </div>
+                          </td>
                         </tr>
                       ))}
                     </tbody>
@@ -500,6 +589,98 @@ export default function AdminDashboard() {
                 <div><label className="block text-sm font-medium mb-1">Nome do Cliente / Lead</label><input type="text" placeholder="Ex: Maria da Silva" value={saleForm.name} onChange={(e) => setSaleForm({...saleForm, name: e.target.value})} className="w-full p-2.5 border rounded-lg" /></div>
                 <div><label className="block text-sm font-medium mb-1">Telefone (Formato Whatsapp com DDI)</label><input type="text" placeholder="5511999999999" value={saleForm.phone} onChange={(e) => setSaleForm({...saleForm, phone: e.target.value})} className="w-full p-2.5 border rounded-lg" /></div>
                 <div className="pt-4 flex gap-3"><button type="button" onClick={() => setIsModalOpen(false)} className="flex-1 border rounded-lg">Cancelar</button><button type="submit" disabled={isSubmitting} className="flex-1 bg-green-600 text-white rounded-lg py-2.5 font-bold">Salvar Venda</button></div>
+              </form>
+            </div>
+          </div>
+        )}
+
+        {/* Modal Editar Venda */}
+        {editModalOpen && (
+          <div className="fixed inset-0 bg-slate-900/50 backdrop-blur-sm flex items-center justify-center p-4 z-50">
+            <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md overflow-hidden">
+              <div className="p-6 border-b border-slate-100 flex justify-between items-center bg-slate-50">
+                <h3 className="text-lg font-bold text-slate-800 flex items-center gap-2">
+                  <Pencil className="w-5 h-5 text-blue-600" />
+                  Editar Venda
+                </h3>
+                <button onClick={() => setEditModalOpen(false)} className="text-slate-400 hover:text-slate-600">
+                  <X className="w-5 h-5" />
+                </button>
+              </div>
+              <form onSubmit={submitEditSale} className="p-6 space-y-4">
+                <div>
+                  <label className="block text-sm font-medium mb-1">Nome do Cliente</label>
+                  <input
+                    type="text"
+                    placeholder="Ex: Maria da Silva"
+                    value={editForm.name}
+                    onChange={(e) => setEditForm({ ...editForm, name: e.target.value })}
+                    className="w-full p-2.5 border rounded-lg"
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium mb-1">Nome do Produto</label>
+                  <input
+                    type="text"
+                    value={editForm.product}
+                    onChange={(e) => setEditForm({ ...editForm, product: e.target.value })}
+                    className="w-full p-2.5 border rounded-lg"
+                    required
+                  />
+                  <div className="flex flex-wrap gap-1 mt-1.5">
+                    {[
+                      'Pudim sem Forno (Principal)',
+                      'Pack Lucratividade (Upsell)',
+                      'Combo: Pudim + Pack'
+                    ].map((sug) => (
+                      <button
+                        key={sug}
+                        type="button"
+                        onClick={() => setEditForm({ ...editForm, product: sug })}
+                        className="text-[11px] bg-slate-100 hover:bg-slate-200 text-slate-700 px-2 py-0.5 rounded"
+                      >
+                        {sug}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+                <div>
+                  <label className="block text-sm font-medium mb-1">Valor Líquido (R$)</label>
+                  <input
+                    type="number"
+                    step="0.01"
+                    value={editForm.value}
+                    onChange={(e) => setEditForm({ ...editForm, value: e.target.value })}
+                    className="w-full p-2.5 border rounded-lg"
+                    required
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium mb-1">Telefone (Whatsapp com DDI)</label>
+                  <input
+                    type="text"
+                    placeholder="5598981265955"
+                    value={editForm.phone}
+                    onChange={(e) => setEditForm({ ...editForm, phone: e.target.value })}
+                    className="w-full p-2.5 border rounded-lg"
+                  />
+                </div>
+                <div className="pt-4 flex gap-3">
+                  <button
+                    type="button"
+                    onClick={() => setEditModalOpen(false)}
+                    className="flex-1 border rounded-lg py-2.5 text-slate-600 hover:bg-slate-50 font-medium"
+                  >
+                    Cancelar
+                  </button>
+                  <button
+                    type="submit"
+                    disabled={isSubmitting}
+                    className="flex-1 bg-blue-600 hover:bg-blue-500 text-white rounded-lg py-2.5 font-bold shadow-sm"
+                  >
+                    Salvar Alterações
+                  </button>
+                </div>
               </form>
             </div>
           </div>
