@@ -39,6 +39,22 @@ export async function POST(request: Request) {
     // NOVIDADE: Cancelamento de fluxo se a venda for aprovada (Pix pago, Cartão aprovado, etc)
     if (eventName === 'Make_Aprovada' || eventName === 'Compra aprovada' || payload.status === 'approved' || payload.status === 'Pago' || eventName === 'Make_Aprovadas') {
       console.log(`[Celetus Webhook] Recebido aviso de pagamento APROVADO para: ${phone}`);
+
+      // TRAVA DE DEDUPLICAÇÃO: Evita que webhooks repetidos da Celetus (retry ou disparo duplo)
+      // insiram a mesma venda e disparem mensagens duplicadas no WhatsApp.
+      // Se já houver uma venda para este telefone nos últimos 5 minutos, ignoramos o webhook repetido.
+      const fiveMinutesAgo = new Date(Date.now() - 5 * 60 * 1000).toISOString();
+      const { data: recentSale } = await supabase
+        .from('vendas')
+        .select('id, data_venda')
+        .eq('telefone', phone)
+        .gte('data_venda', fiveMinutesAgo)
+        .limit(1);
+
+      if (recentSale && recentSale.length > 0) {
+        console.warn(`[Celetus Webhook] Venda já registrada recentemente para o telefone ${phone}. Ignorando webhook duplicado.`);
+        return NextResponse.json({ message: 'Webhook duplicado já processado para este lead' }, { status: 200 });
+      }
       
       // Busca o lead no Supabase
       let { data: leadData } = await supabase.from('leads').select('qstash_reminder_id, status').eq('phone', phone).single();
