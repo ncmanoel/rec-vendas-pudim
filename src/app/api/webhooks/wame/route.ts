@@ -34,11 +34,34 @@ export async function POST(request: Request) {
 
     const normalizedText = textMessage.trim().toLowerCase();
 
-    // Extrair se tem mídia (imagem ou documento) para a etapa de comprovante
-    const hasMedia = payload.data?.isMedia === true || payload.data?.urlMedia != null || !!payload.data?.fileBase64;
+    // Identificar tipo de mensagem e mídia
+    // No Wame / Baileys:
+    // messageType pode ser: conversation, extendedTextMessage, imageMessage, documentMessage, audioMessage, voiceMessage, videoMessage, stickerMessage
+    const msgType = payload.data?.messageType || 
+                    payload.data?.msgContent?.messageType || 
+                    Object.keys(payload.data?.message || {})[0] || 
+                    Object.keys(payload.data?.msgContent || {})[0] || 
+                    '';
 
-    // Ignorar reações ou mensagens vazias sem mídia
-    if (!normalizedText && !hasMedia) {
+    const isAudio = msgType.includes('audio') || 
+                    msgType.includes('voice') || 
+                    payload.data?.message?.audioMessage != null ||
+                    payload.data?.msgContent?.audioMessage != null;
+
+    // Apenas imagens ou documentos (PDF, etc) são considerados comprovantes válidos
+    const isImageOrDoc = msgType.includes('image') || 
+                         msgType.includes('document') || 
+                         payload.data?.message?.imageMessage != null || 
+                         payload.data?.message?.documentMessage != null ||
+                         payload.data?.msgContent?.imageMessage != null ||
+                         payload.data?.msgContent?.documentMessage != null;
+
+    // Se vier com flag genérica isMedia mas NÃO for áudio, aceita como mídia de comprovante
+    const hasMedia = (payload.data?.isMedia === true || payload.data?.urlMedia != null || !!payload.data?.fileBase64) && !isAudio;
+    const isComprovanteMedia = isImageOrDoc || hasMedia;
+
+    // Ignorar reações ou mensagens vazias sem texto e sem mídia
+    if (!normalizedText && !isComprovanteMedia && !isAudio) {
       console.log(`[Wame Webhook] Ignorando mensagem vazia/reação de ${phone}`);
       return NextResponse.json({ success: true, reason: 'empty_or_reaction' });
     }
@@ -128,7 +151,7 @@ export async function POST(request: Request) {
     // ETAPA 2: Aguardando Comprovante (Imagem ou PDF)
     // -------------------------------------------------------------
     else if (status === 'AGUARDANDO_COMPROVANTE') {
-      if (hasMedia) {
+      if (isComprovanteMedia) {
         if (qstash_reminder_id) {
           try { await qstashClient.messages.delete(qstash_reminder_id); } catch (e) {}
         }
@@ -151,6 +174,9 @@ export async function POST(request: Request) {
         // 2. Dispara o Upsell logo em seguida
         const msgUpsell = `Aproveitando, deixa eu te fazer uma pergunta rápida...\n\nMuitas meninas têm dificuldade em calcular o preço das receitas e acabam perdendo dinheiro no final do mês.\n\nEu tenho o *Pack Lucratividade Garantida* (com Guias e Checklists) que resolve isso na hora. Ele custa originalmente *R$ 47,00*, mas como você acabou de se tornar aluna, posso liberar o acesso para você agora por apenas *+ R$ 11,90*.\n\nQuer aproveitar esse mega desconto e fazer um Pix de R$ 11,90 para levar o Pack também?\nDigite 1 para SIM\nDigite 2 para NÃO`;
         await sendWameText(phone, msgUpsell);
+      } else if (isAudio) {
+        const msgAudio = `{Olá|Oi}! Ouvi seu áudio 🥰 Mas como nosso sistema é automatizado para conferência, preciso que você me envie uma **foto (print)** ou o arquivo **PDF** do comprovante do Pix aqui para eu poder liberar o seu material na hora, tá bom?`;
+        await sendWameText(phone, msgAudio);
       } else {
         const msgErroComp = `{Perfeito|Tudo bem} 😊\n\nAssim que você enviar uma imagem ou um PDF do comprovante eu libero imediatamente o restante do material.`;
         await sendWameText(phone, msgErroComp);
@@ -189,10 +215,13 @@ export async function POST(request: Request) {
     // ETAPA 4: Aguardando Comprovante Upsell (R$ 11,90)
     // -------------------------------------------------------------
     else if (status === 'AGUARDANDO_COMPROVANTE_UPSELL') {
-      if (hasMedia) {
+      if (isComprovanteMedia) {
         const msgFimUpsell = `{Obrigada!|Perfeito!} Comprovante recebido!\n\nAqui está o link de acesso seguro ao seu Pack Lucratividade Garantida no Google Drive:\n👉 https://drive.google.com/drive/folders/1-yGlJKQX7_fluzDFWaj9wriB-EfhWvJd\n\nDesejo a você muito sucesso nas suas vendas! 💛`;
         await sendWameText(phone, msgFimUpsell);
         await supabase.from('leads').update({ status: 'CONCLUIDO_UPSELL' }).eq('phone', dbPhone);
+      } else if (isAudio) {
+        const msgAudio = `{Olá|Oi}! Ouvi seu áudio 🥰 Mas preciso que você me envie a foto (print) ou PDF do comprovante de R$ 11,90 para eu liberar o link do Pack para você!`;
+        await sendWameText(phone, msgAudio);
       } else {
         const msgErroComp = `{Perfeito|Tudo bem} 😊\n\nAssim que você enviar o comprovante de R$ 11,90 eu te envio o link de acesso ao Pack!`;
         await sendWameText(phone, msgErroComp);
@@ -230,10 +259,13 @@ export async function POST(request: Request) {
     // ETAPA 6: Aguardando Comprovante Downsell (R$ 7,90)
     // -------------------------------------------------------------
     else if (status === 'AGUARDANDO_COMPROVANTE_DOWNSELL') {
-      if (hasMedia) {
+      if (isComprovanteMedia) {
         const msgFimDownsell = `{Obrigada!|Perfeito!} Comprovante recebido!\n\nAqui está o link de acesso seguro ao seu Pack Lucratividade Garantida no Google Drive:\n👉 https://drive.google.com/drive/folders/1-yGlJKQX7_fluzDFWaj9wriB-EfhWvJd\n\nDesejo a você muito sucesso nas suas vendas! 💛`;
         await sendWameText(phone, msgFimDownsell);
         await supabase.from('leads').update({ status: 'CONCLUIDO_DOWNSELL' }).eq('phone', dbPhone);
+      } else if (isAudio) {
+        const msgAudio = `{Olá|Oi}! Ouvi seu áudio 🥰 Mas preciso que você me envie a foto (print) ou PDF do comprovante de R$ 7,90 para eu liberar o link do Pack para você!`;
+        await sendWameText(phone, msgAudio);
       } else {
         const msgErroComp = `{Perfeito|Tudo bem} 😊\n\nAssim que você enviar o comprovante de R$ 7,90 eu te envio o link de acesso ao Pack!`;
         await sendWameText(phone, msgErroComp);
