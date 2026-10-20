@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server';
 import { supabase } from '@/lib/supabase';
 import { qstashClient } from '@/lib/qstash';
 import { sendWameText, sendWameDocument } from '@/lib/wame';
+import { normalizePhone } from '@/lib/phone';
 
 export async function POST(request: Request) {
   try {
@@ -12,7 +13,6 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: 'Payload inválido ou sem telefone' }, { status: 400 });
     }
 
-    const rawPhone = payload.customer.phone;
     const fullName = payload.customer.name || 'Cliente';
     const email = payload.customer.email || '';
     const eventName = payload.event_name;
@@ -23,13 +23,15 @@ export async function POST(request: Request) {
                        payload.status === 'Pago' || 
                        payload.event_type === 'ApprovedPurchase';
 
-    // 2. Normalização do telefone (DDI + DDD + Número)
-    let phone = rawPhone.replace(/\D/g, '');
-    if (phone.startsWith('0') && (phone.length === 11 || phone.length === 12)) {
-      phone = phone.substring(1);
-    }
-    if (phone.length === 10 || phone.length === 11) {
-      phone = `55${phone}`;
+    // 2. Normalização do telefone com proteção contra duplicações de DDI (55)
+    const rawPhone = payload.customer.phone_national 
+      ? `55${payload.customer.phone_national}` 
+      : payload.customer.phone;
+
+    const phone = normalizePhone(rawPhone);
+    if (!phone) {
+      console.warn(`[Celetus Webhook] Telefone inválido ou incompleto ignorado: ${payload.customer.phone}`);
+      return NextResponse.json({ message: 'Telefone inválido ignorado' }, { status: 200 });
     }
 
     const firstName = fullName.split(' ')[0];
