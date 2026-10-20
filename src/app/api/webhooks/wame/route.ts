@@ -8,21 +8,14 @@ export async function POST(request: Request) {
     const payload = await request.json();
     console.log('[Wame Webhook] Payload Recebido:', JSON.stringify(payload, null, 2));
 
-    // A estrutura exata do Webhook do Wame pode variar, geralmente vem em algo como:
-    // payload.data.message.extendedTextMessage.text ou payload.message.text
-    // Vamos tentar extrair o texto e o telefone de forma genérica baseada na doc REST
-    
-    // O Wame manda um payload específico
     const fromMe = payload.data?.me || payload.data?.key?.fromMe || false;
-    if (fromMe) return NextResponse.json({ success: true }); // Ignora mensagens enviadas pelo próprio robô
+    if (fromMe) return NextResponse.json({ success: true });
 
     let phone = payload.data?.phoneNumber || payload.data?.key?.remoteJid || payload.data?.remoteJid || payload.phoneNumber || '';
     if (!phone) return NextResponse.json({ success: true });
     
-    // Filtra apenas os números, pois pode vir com @s.whatsapp.net ou sinais
     phone = phone.replace(/\D/g, '');
 
-    // Extrair o texto recebido
     const textMessage = 
       payload.data?.msgContent?.conversation || 
       payload.data?.msgContent?.extendedTextMessage?.text ||
@@ -34,9 +27,6 @@ export async function POST(request: Request) {
 
     const normalizedText = textMessage.trim().toLowerCase();
 
-    // Identificar tipo de mensagem e mídia
-    // No Wame / Baileys:
-    // messageType pode ser: conversation, extendedTextMessage, imageMessage, documentMessage, audioMessage, voiceMessage, videoMessage, stickerMessage
     const msgType = payload.data?.messageType || 
                     payload.data?.msgContent?.messageType || 
                     Object.keys(payload.data?.message || {})[0] || 
@@ -48,7 +38,6 @@ export async function POST(request: Request) {
                     payload.data?.message?.audioMessage != null ||
                     payload.data?.msgContent?.audioMessage != null;
 
-    // Apenas imagens ou documentos (PDF, etc) são considerados comprovantes válidos
     const isImageOrDoc = msgType.includes('image') || 
                          msgType.includes('document') || 
                          payload.data?.message?.imageMessage != null || 
@@ -56,229 +45,296 @@ export async function POST(request: Request) {
                          payload.data?.msgContent?.imageMessage != null ||
                          payload.data?.msgContent?.documentMessage != null;
 
-    // Se vier com flag genérica isMedia mas NÃO for áudio, aceita como mídia de comprovante
     const hasMedia = (payload.data?.isMedia === true || payload.data?.urlMedia != null || !!payload.data?.fileBase64) && !isAudio;
     const isComprovanteMedia = isImageOrDoc || hasMedia;
 
-    // Ignorar reações ou mensagens vazias sem texto e sem mídia
     if (!normalizedText && !isComprovanteMedia && !isAudio) {
-      console.log(`[Wame Webhook] Ignorando mensagem vazia/reação de ${phone}`);
       return NextResponse.json({ success: true, reason: 'empty_or_reaction' });
     }
 
-    // 1. Buscar o Lead no banco de dados para ver em qual etapa ele está
-    // Como o WhatsApp pode remover o 9o dígito (ex: manda 5541880... e nós salvamos 55419880...),
-    // vamos buscar pelos últimos 8 dígitos do telefone para garantir que ache o lead.
+    // Busca lead pelos últimos 8 dígitos (tolerante ao 9º dígito ausente)
     const last8Digits = phone.slice(-8);
-
     const { data: leads } = await supabase
       .from('leads')
       .select('*')
       .like('phone', `%${last8Digits}`);
 
     if (!leads || leads.length === 0) {
-      // Número desconhecido, ignorar
       return NextResponse.json({ success: true });
     }
 
-    const lead = leads[0]; // Pega o primeiro correspondente
+    const lead = leads[0];
     const { status, name: firstName, qstash_reminder_id, phone: dbPhone } = lead;
+    const baseUrl = process.env.NEXT_PUBLIC_APP_URL || 'https://rec-vendas-pudim.vercel.app';
 
-    // 2. Lógica Baseada no Estado Atual do Lead
+    // Helper para cancelar lembrete antigo do QStash
+    const cancelExistingReminder = async () => {
+      if (qstash_reminder_id) {
+        try { await qstashClient.messages.delete(qstash_reminder_id); } catch (e) {}
+      }
+    };
 
-    // -------------------------------------------------------------
-    // ETAPA 1: Aguardando resposta (1 para SIM, 2 para NÃO)
-    // -------------------------------------------------------------
+    // Helper para agendar novo lembrete e salvar ID no banco
+    const scheduleReminder = async (action: string, delay: any) => {
+      try {
+        const res: any = await qstashClient.publishJSON({
+          url: `${baseUrl}/api/qstash/worker`,
+          body: { action, phone: dbPhone, firstName },
+          delay
+        });
+        return res?.messageId || null;
+      } catch (e) {
+        return null;
+      }
+    };
+
+    // Detecção universal de intenções
+    const isNao = normalizedText === '2' || /\b(n[ãa]o|nunca|jamais|deixa pra l[aá]|cancelar|agora n[ãa]o)\b/.test(normalizedText);
+    const isSim = !isNao && (normalizedText === '1' || /\b(sim|quero|claro|pode|manda|com certeza|bora|aceito|fechado)\b/.test(normalizedText));
+    const isJaPagou = /\b(j[aá] paguei|j[aá] fiz|j[aá] mandei|j[aá] enviei|paguei|fiz o pix|mandei o pix)\b/.test(normalizedText);
+
+    // =========================================================================
+    // ETAPA 1: Permissão inicial de envio (1 SIM / 2 NÃO) - Abandono
+    // =========================================================================
     if (status === 'AGUARDANDO_RESPOSTA_1_2') {
-      // Reconhecimento inteligente de intenção
-      // Verifica primeiro se é um NÃO
-      const isNao = normalizedText === '2' || /\b(n[ãa]o|nunca|jamais|deixa pra l[aá]|cancelar)\b/.test(normalizedText);
-      // Se não for NÃO, verifica se é um SIM (assim evita que "não quero" caia no "quero")
-      const isSim = !isNao && (normalizedText === '1' || /\b(sim|quero|claro|pode|manda|com certeza|bora)\b/.test(normalizedText));
-      // NOVO: Verifica se o cliente está dizendo que já pagou/já fez o pix
-      const isJaPagou = /\b(j[aá] paguei|j[aá] fiz|j[aá] mandei|j[aá] enviei|paguei|fiz o pix|mandei o pix)\b/.test(normalizedText);
+      await cancelExistingReminder();
 
       if (isJaPagou) {
-        if (qstash_reminder_id) {
-          try { await qstashClient.messages.delete(qstash_reminder_id); } catch (e) {}
-        }
-        const msgJaPagou = `{Que ótimo!|Maravilha!|Perfeito!} 🥰\n\nNesse caso, por favor me envie uma foto ou PDF do comprovante aqui mesmo para que eu possa localizar e liberar o seu material imediatamente!`;
+        const msgJaPagou = `{Que ótimo!|Maravilha!|Perfeito!} 🥰\n\nNesse caso, por favor me envie uma foto ou PDF do comprovante aqui mesmo para eu localizar e liberar o seu material imediatamente!`;
         await sendWameText(phone, msgJaPagou);
         await supabase.from('leads').update({ status: 'AGUARDANDO_COMPROVANTE' }).eq('phone', dbPhone);
       } 
       else if (isSim) {
-        
-        // Cancela o lembrete de 24h que estava agendado!
-        if (qstash_reminder_id) {
-          try { await qstashClient.messages.delete(qstash_reminder_id); } catch (e) {}
-        }
-
-        // Manda Mensagem 8
         const msg8 = `{Parabéns pela sua postura! 🎉|Que atitude incrível! 🥰|Muito obrigada pela honestidade! 💛}\nA Chave Pix para pagamento é:\n*CPF:* 83647139904\n*Nome:* Ney Carlos Manoel (meu marido 🥰)\n*Valor:* R$ 10,00`;
         await sendWameText(phone, msg8);
 
-        // Agenda Msg 9, 10, 11 (Pix e Arquivo 1)
-        const baseUrl = process.env.NEXT_PUBLIC_APP_URL || 'https://sua-url.vercel.app';
         await qstashClient.publishJSON({
           url: `${baseUrl}/api/qstash/worker`,
           body: { action: 'SEND_PIX_SEQUENCE', phone: dbPhone, firstName },
           delay: '5s'
         });
         
-        // Atualiza o status instantaneamente para evitar conflito se o usuário enviar o comprovante muito rápido
         await supabase.from('leads').update({ status: 'AGUARDANDO_COMPROVANTE' }).eq('phone', dbPhone);
-
       } 
-      // Se ele mandou 2, não, sair
       else if (isNao) {
-        
-        if (qstash_reminder_id) {
-          try { await qstashClient.messages.delete(qstash_reminder_id); } catch (e) {}
-        }
-
         const msgDespedida = `{Tudo bem|Sem problemas|Compreendo}, sem problemas.\n\nDesejo a você muito sucesso em sua jornada e fico à disposição, tá bom!\n\n{Um abraço|Um beijo|Até mais},\n\nAna`;
         await sendWameText(phone, msgDespedida);
         await supabase.from('leads').update({ status: 'CANCELADO' }).eq('phone', dbPhone);
       } 
-      // Mandou algo nada a ver
       else {
         const msgErro = `Desculpe 😊\n\nPara continuar preciso apenas que responda:\n\nDigite 1 para SIM\nDigite 2 para NÃO`;
         await sendWameText(phone, msgErro);
       }
     }
 
-    // -------------------------------------------------------------
-    // ETAPA 2: Aguardando Comprovante (Imagem ou PDF)
-    // -------------------------------------------------------------
+    // =========================================================================
+    // ETAPA 2: Aguardando Comprovante Principal de R$ 10 (Abandono)
+    // Entrega Caldas e inicia esteira oferecendo a Planilha Mágica por R$ 9,90!
+    // =========================================================================
     else if (status === 'AGUARDANDO_COMPROVANTE') {
       if (isComprovanteMedia) {
-        if (qstash_reminder_id) {
-          try { await qstashClient.messages.delete(qstash_reminder_id); } catch (e) {}
-        }
-        
-        // Atualiza o status primeiro para garantir que não teremos problemas se o Vercel der timeout no meio dos delays
-        await supabase.from('leads').update({ status: 'AGUARDANDO_RESPOSTA_UPSELL' }).eq('phone', dbPhone);
+        await cancelExistingReminder();
 
-        // 1. Agradece e envia o material original que a pessoa comprou
+        // 1. Envia Caldas que Vendem
         await sendWameDocument(phone, "https://xzysqeivbibosmryjsqm.supabase.co/storage/v1/object/public/arquivos-bot/Caldas%20que%20Vendem.pdf", "Caldas que Vendem.pdf");
-        
-        // Pausa breve para o WhatsApp entregar o arquivo antes do texto
         await new Promise(r => setTimeout(r, 2000));
 
-        const msg12 = `{Parabéns pela sua decisão!|Que maravilha!|Perfeito!} Comprovante recebido! Conforme prometido, acabei de enviar o Guia de Caldas logo acima. ☝️`;
+        const msg12 = `{Parabéns pela sua decisão!|Que maravilha!|Perfeito!} Comprovante recebido! Conforme prometido, acabei de enviar o Guia de Caldas logo acima. ☝️🥰`;
         await sendWameText(phone, msg12);
+        await new Promise(r => setTimeout(r, 2000));
 
-        // Mais uma pausa breve antes de mandar a oferta
-        await new Promise(r => setTimeout(r, 1500));
+        // 2. Dispara Oferta da Planilha Mágica (R$ 9,90)
+        const msgOfertaPlanilha = `Aproveitando, deixa eu te fazer uma pergunta rápida... 🥰\n\nMuitas alunas têm medo de errar no preço das receitas e acabar tendo prejuízo ou vendendo pudim barato demais.\n\nPara resolver isso, eu criei a *Planilha Mágica de Precificação Automática* 📊\nVocê só preenche quanto pagou nos ingredientes e ela calcula na hora o *custo exato por fatia/pudim* e o *preço de venda ideal com até 200% de lucro*!\n\nEla custa originalmente R$ 27,00, mas como você acabou de se tornar aluna, consigo liberar o acesso vitalício agora por apenas *R$ 9,90* no Pix!\n\nQuer aproveitar e garantir a sua Planilha por R$ 9,90?\nDigite 1 para SIM\nDigite 2 para NÃO`;
+        await sendWameText(phone, msgOfertaPlanilha);
 
-        // 2. Dispara o Upsell logo em seguida
-        const msgUpsell = `Aproveitando, deixa eu te fazer uma pergunta rápida...\n\nMuitas meninas têm dificuldade em calcular o preço das receitas e acabam perdendo dinheiro no final do mês.\n\nEu tenho o *Pack Lucratividade Garantida* (com Guias e Checklists) que resolve isso na hora. Ele custa originalmente *R$ 47,00*, mas como você acabou de se tornar aluna, posso liberar o acesso para você agora por apenas *+ R$ 11,90*.\n\nQuer aproveitar esse mega desconto e fazer um Pix de R$ 11,90 para levar o Pack também?\nDigite 1 para SIM\nDigite 2 para NÃO`;
-        await sendWameText(phone, msgUpsell);
+        const newReminderId = await scheduleReminder('REMINDER_UPSELL_PLANILHA', '2h');
+        await supabase.from('leads').update({
+          status: 'AGUARDANDO_RESPOSTA_UPSELL_PLANILHA',
+          qstash_reminder_id: newReminderId
+        }).eq('phone', dbPhone);
+
       } else if (isAudio) {
-        const msgAudio = `{Olá|Oi}! Ouvi seu áudio 🥰 Mas como nosso sistema é automatizado para conferência, preciso que você me envie uma **foto (print)** ou o arquivo **PDF** do comprovante do Pix aqui para eu poder liberar o seu material na hora, tá bom?`;
-        await sendWameText(phone, msgAudio);
+        await sendWameText(phone, `{Olá|Oi}! Ouvi seu áudio 🥰 Mas como nosso sistema é automatizado para conferência, preciso que você me envie uma **foto (print)** ou o arquivo **PDF** do comprovante do Pix aqui para eu poder liberar o seu material na hora, tá bom?`);
       } else {
-        const msgErroComp = `{Perfeito|Tudo bem} 😊\n\nAssim que você enviar uma imagem ou um PDF do comprovante eu libero imediatamente o restante do material.`;
-        await sendWameText(phone, msgErroComp);
+        await sendWameText(phone, `{Perfeito|Tudo bem} 😊\n\nAssim que você enviar uma imagem ou PDF do comprovante do Pix eu libero imediatamente o restante do material!`);
       }
     }
 
-    // -------------------------------------------------------------
-    // ETAPA 3: Aguardando Resposta do Upsell (1 ou 2)
-    // -------------------------------------------------------------
-    else if (status === 'AGUARDANDO_RESPOSTA_UPSELL') {
-      const isNao = normalizedText === '2' || /\b(n[ãa]o|nunca|jamais|deixa pra l[aá]|cancelar)\b/.test(normalizedText);
-      const isSim = !isNao && (normalizedText === '1' || /\b(sim|quero|claro|pode|manda|com certeza|bora)\b/.test(normalizedText));
-      const isJaPagou = /\b(j[aá] paguei|j[aá] fiz|j[aá] mandei|j[aá] enviei|paguei|fiz o pix|mandei o pix)\b/.test(normalizedText);
+    // =========================================================================
+    // ETAPA 3: Resposta da Planilha Mágica (R$ 9,90)
+    // =========================================================================
+    else if (status === 'AGUARDANDO_RESPOSTA_UPSELL_PLANILHA') {
+      await cancelExistingReminder();
 
       if (isJaPagou) {
-        const msgJaPagou = `{Que ótimo!|Maravilha!|Perfeito!} 🥰\n\nNesse caso, por favor me envie a foto ou PDF do comprovante aqui para que eu possa liberar o Pack imediatamente!`;
-        await sendWameText(phone, msgJaPagou);
-        await supabase.from('leads').update({ status: 'AGUARDANDO_COMPROVANTE_UPSELL' }).eq('phone', dbPhone);
+        await sendWameText(phone, `{Que ótimo!|Maravilha!|Perfeito!} 🥰 Por favor me envie a foto ou PDF do comprovante de R$ 9,90 aqui para eu liberar o link da sua Planilha na hora!`);
+        await supabase.from('leads').update({ status: 'AGUARDANDO_COMPROVANTE_UPSELL_PLANILHA' }).eq('phone', dbPhone);
       }
       else if (isSim) {
-        const msgPixUpsell = `{Maravilha!|Excelente escolha!} 🎉\nA Chave Pix para o Pack é:\n*CPF:* 83647139904\n*Nome:* Ney Carlos Manoel\n*Valor:* R$ 11,90`;
-        await sendWameText(phone, msgPixUpsell);
-        await supabase.from('leads').update({ status: 'AGUARDANDO_COMPROVANTE_UPSELL' }).eq('phone', dbPhone);
-      } else if (isNao) {
-        // Dispara o Downsell
-        const msgDownsell = `Entendo perfeitamente! 💛\n\nEu sei que as coisas não estão fáceis e não quero que você fique sem esse material tão importante para o seu negócio.\n\nEntão vou fazer uma loucura: vou liberar o acesso ao Pack Lucratividade pra você por apenas *R$ 7,90*!\n\nÉ menos que um lanche pra você não ter mais prejuízo. Aceita?\n1 para SIM\n2 para NÃO`;
-        await sendWameText(phone, msgDownsell);
-        await supabase.from('leads').update({ status: 'AGUARDANDO_RESPOSTA_DOWNSELL' }).eq('phone', dbPhone);
-      } else {
-        const msgErro = `Desculpe 😊\n\nPara continuar preciso apenas que responda:\n\nDigite 1 para SIM\nDigite 2 para NÃO`;
-        await sendWameText(phone, msgErro);
+        const msgPixPlanilha = `{Maravilha!|Excelente escolha!} 🎉\nA Chave Pix para a Planilha Mágica é:\n*CPF:* 83647139904\n*Nome:* Ney Carlos Manoel\n*Valor:* R$ 9,90\n\nAssim que fizer, é só me mandar o comprovante aqui para eu liberar o seu acesso imediato! 🥰`;
+        await sendWameText(phone, msgPixPlanilha);
+
+        const reminderId = await scheduleReminder('REMINDER_RECEIPT_PLANILHA', '1h');
+        await supabase.from('leads').update({
+          status: 'AGUARDANDO_COMPROVANTE_UPSELL_PLANILHA',
+          qstash_reminder_id: reminderId
+        }).eq('phone', dbPhone);
+      }
+      else if (isNao) {
+        // Recusou a Planilha -> Sem problemas! Oferece o Pack Lucratividade por R$ 11,90!
+        const msgAvancaPack = `{Tudo bem|Sem problemas}! 💛\n\nDeixa eu te fazer só mais uma perguntinha rápida... 🥰\n\nSe você quer acelerar suas vendas e começar a faturar toda semana, eu tenho o *Pack Lucratividade Garantida* 💵\nSão *41 Vídeo Aulas Práticas (passo a passo)* + Modelos Prontos de Divulgação e Estratégias de Venda Rápida!\n\nEle custa originalmente *R$ 47,00*, mas para alunas novas consigo liberar agora por apenas *R$ 11,90* no Pix.\n\nQuer aproveitar esse mega desconto e levar as 41 Vídeo Aulas por R$ 11,90?\nDigite 1 para SIM\nDigite 2 para NÃO`;
+        await sendWameText(phone, msgAvancaPack);
+
+        const reminderId = await scheduleReminder('REMINDER_UPSELL_PACK', '2h');
+        await supabase.from('leads').update({
+          status: 'AGUARDANDO_RESPOSTA_UPSELL_PACK',
+          qstash_reminder_id: reminderId
+        }).eq('phone', dbPhone);
+      }
+      else {
+        await sendWameText(phone, `Desculpe 😊 Para continuar preciso apenas que responda:\n\nDigite 1 para SIM\nDigite 2 para NÃO`);
       }
     }
 
-    // -------------------------------------------------------------
-    // ETAPA 4: Aguardando Comprovante Upsell (R$ 11,90)
-    // -------------------------------------------------------------
-    else if (status === 'AGUARDANDO_COMPROVANTE_UPSELL') {
+    // =========================================================================
+    // ETAPA 4: Comprovante da Planilha Mágica (R$ 9,90)
+    // Entrega a Planilha e, em seguida, oferece o Pack por R$ 11,90!
+    // =========================================================================
+    else if (status === 'AGUARDANDO_COMPROVANTE_UPSELL_PLANILHA') {
       if (isComprovanteMedia) {
-        const msgFimUpsell = `{Obrigada!|Perfeito!} Comprovante recebido!\n\nAqui está o link de acesso seguro ao seu Pack Lucratividade Garantida no Google Drive:\n👉 https://drive.google.com/drive/folders/1-yGlJKQX7_fluzDFWaj9wriB-EfhWvJd\n\nDesejo a você muito sucesso nas suas vendas! 💛`;
+        await cancelExistingReminder();
+
+        // 1. Entrega a Planilha
+        const msgEntregaPlanilha = `{Obrigada!|Perfeito!} Comprovante de R$ 9,90 recebido com sucesso! 🥰\n\nAqui está o link de acesso seguro à sua *Planilha Mágica de Precificação* no Google Drive:\n👉 https://drive.google.com/drive/folders/11XJvsadAyyFRFxqCaF9oKTk5XK0YpIM_?usp=sharing\n\nVocê já pode abrir e começar a usar! 📊💛`;
+        await sendWameText(phone, msgEntregaPlanilha);
+        await new Promise(r => setTimeout(r, 2500));
+
+        // 2. Dispara a Oferta do Pack (R$ 11,90)
+        const msgOfertaPack = `Aproveitando o seu embalo de sucesso... 🥰\n\nSe você quer acelerar suas vendas e começar a faturar toda semana, eu tenho o *Pack Lucratividade Garantida* 💵\nSão *41 Vídeo Aulas Práticas (passo a passo)* + Modelos Prontos de Divulgação e Estratégias de Venda Rápida!\n\nEle custa originalmente *R$ 47,00*, mas como você acabou de garantir sua Planilha, posso liberar o acesso completo por apenas *+ R$ 11,90* no Pix.\n\nQuer aproveitar esse mega desconto e levar as 41 Vídeo Aulas por R$ 11,90?\nDigite 1 para SIM\nDigite 2 para NÃO`;
+        await sendWameText(phone, msgOfertaPack);
+
+        const reminderId = await scheduleReminder('REMINDER_UPSELL_PACK', '2h');
+        await supabase.from('leads').update({
+          status: 'AGUARDANDO_RESPOSTA_UPSELL_PACK',
+          qstash_reminder_id: reminderId
+        }).eq('phone', dbPhone);
+
+      } else if (isAudio) {
+        await sendWameText(phone, `{Olá|Oi}! Ouvi seu áudio 🥰 Mas preciso que você me envie a foto (print) ou PDF do comprovante de R$ 9,90 para eu liberar o link da sua Planilha, tá bom?`);
+      } else {
+        await sendWameText(phone, `{Perfeito|Tudo bem} 😊 Assim que você enviar o comprovante de R$ 9,90 eu te envio o link de acesso à Planilha!`);
+      }
+    }
+
+    // =========================================================================
+    // ETAPA 5: Resposta do Pack Lucratividade (R$ 11,90)
+    // Suporta tanto o novo status quanto o legado AGUARDANDO_RESPOSTA_UPSELL
+    // =========================================================================
+    else if (status === 'AGUARDANDO_RESPOSTA_UPSELL_PACK' || status === 'AGUARDANDO_RESPOSTA_UPSELL') {
+      await cancelExistingReminder();
+
+      if (isJaPagou) {
+        await sendWameText(phone, `{Que ótimo!|Maravilha!|Perfeito!} 🥰 Por favor me envie a foto ou PDF do comprovante aqui para eu liberar o Pack imediatamente!`);
+        await supabase.from('leads').update({ status: 'AGUARDANDO_COMPROVANTE_UPSELL_PACK' }).eq('phone', dbPhone);
+      }
+      else if (isSim) {
+        const msgPixUpsell = `{Maravilha!|Excelente escolha!} 🎉\nA Chave Pix para o Pack é:\n*CPF:* 83647139904\n*Nome:* Ney Carlos Manoel\n*Valor:* R$ 11,90\n\nAssim que fizer, é só me mandar o comprovante aqui para liberar seu acesso! 🥰`;
+        await sendWameText(phone, msgPixUpsell);
+
+        const reminderId = await scheduleReminder('REMINDER_RECEIPT_PACK', '1h');
+        await supabase.from('leads').update({
+          status: 'AGUARDANDO_COMPROVANTE_UPSELL_PACK',
+          qstash_reminder_id: reminderId
+        }).eq('phone', dbPhone);
+      }
+      else if (isNao) {
+        // Dispara o Downsell do Pack por R$ 7,90
+        const msgDownsell = `Entendo perfeitamente! 💛\n\nEu sei que as coisas não estão fáceis e não quero que você fique sem esse material tão importante para acelerar suas vendas.\n\nEntão vou fazer uma loucura: vou liberar o acesso ao Pack Lucratividade com as 41 Vídeo Aulas para você por apenas *R$ 7,90* no Pix!\n\nÉ menos que o valor de um lanche para você não ter mais dúvida na cozinha. Aceita?\nDigite 1 para SIM\nDigite 2 para NÃO`;
+        await sendWameText(phone, msgDownsell);
+
+        const reminderId = await scheduleReminder('REMINDER_DOWNSELL_PACK', '2h');
+        await supabase.from('leads').update({
+          status: 'AGUARDANDO_RESPOSTA_DOWNSELL_PACK',
+          qstash_reminder_id: reminderId
+        }).eq('phone', dbPhone);
+      }
+      else {
+        await sendWameText(phone, `Desculpe 😊 Para continuar preciso apenas que responda:\n\nDigite 1 para SIM\nDigite 2 para NÃO`);
+      }
+    }
+
+    // =========================================================================
+    // ETAPA 6: Comprovante do Pack (R$ 11,90)
+    // =========================================================================
+    else if (status === 'AGUARDANDO_COMPROVANTE_UPSELL_PACK' || status === 'AGUARDANDO_COMPROVANTE_UPSELL') {
+      if (isComprovanteMedia) {
+        await cancelExistingReminder();
+
+        const msgFimUpsell = `{Obrigada!|Perfeito!} Comprovante de R$ 11,90 recebido!\n\nAqui está o link de acesso seguro ao seu *Pack Lucratividade Garantida* no Google Drive:\n👉 https://drive.google.com/drive/folders/1-yGlJKQX7_fluzDFWaj9wriB-EfhWvJd\n\nDesejo a você muito sucesso nas suas receitas e vendas! 💛🚀`;
         await sendWameText(phone, msgFimUpsell);
         await supabase.from('leads').update({ status: 'CONCLUIDO_UPSELL' }).eq('phone', dbPhone);
+
       } else if (isAudio) {
-        const msgAudio = `{Olá|Oi}! Ouvi seu áudio 🥰 Mas preciso que você me envie a foto (print) ou PDF do comprovante de R$ 11,90 para eu liberar o link do Pack para você!`;
-        await sendWameText(phone, msgAudio);
+        await sendWameText(phone, `{Olá|Oi}! Ouvi seu áudio 🥰 Mas preciso que você me envie a foto (print) ou PDF do comprovante de R$ 11,90 para eu liberar o link do Pack para você!`);
       } else {
-        const msgErroComp = `{Perfeito|Tudo bem} 😊\n\nAssim que você enviar o comprovante de R$ 11,90 eu te envio o link de acesso ao Pack!`;
-        await sendWameText(phone, msgErroComp);
+        await sendWameText(phone, `{Perfeito|Tudo bem} 😊 Assim que você enviar o comprovante de R$ 11,90 eu te envio o link de acesso ao Pack!`);
       }
     }
 
-    // -------------------------------------------------------------
-    // ETAPA 5: Aguardando Resposta do Downsell (1 ou 2)
-    // -------------------------------------------------------------
-    else if (status === 'AGUARDANDO_RESPOSTA_DOWNSELL') {
-      const isNao = normalizedText === '2' || /\b(n[ãa]o|nunca|jamais|deixa pra l[aá]|cancelar)\b/.test(normalizedText);
-      const isSim = !isNao && (normalizedText === '1' || /\b(sim|quero|claro|pode|manda|com certeza|bora)\b/.test(normalizedText));
-      const isJaPagou = /\b(j[aá] paguei|j[aá] fiz|j[aá] mandei|j[aá] enviei|paguei|fiz o pix|mandei o pix)\b/.test(normalizedText);
+    // =========================================================================
+    // ETAPA 7: Resposta do Downsell do Pack (R$ 7,90)
+    // =========================================================================
+    else if (status === 'AGUARDANDO_RESPOSTA_DOWNSELL_PACK' || status === 'AGUARDANDO_RESPOSTA_DOWNSELL') {
+      await cancelExistingReminder();
 
       if (isJaPagou) {
-        const msgJaPagou = `{Que ótimo!|Maravilha!|Perfeito!} 🥰\n\nNesse caso, por favor me envie a foto ou PDF do comprovante aqui para que eu possa liberar o Pack imediatamente!`;
-        await sendWameText(phone, msgJaPagou);
-        await supabase.from('leads').update({ status: 'AGUARDANDO_COMPROVANTE_DOWNSELL' }).eq('phone', dbPhone);
+        await sendWameText(phone, `{Que ótimo!|Maravilha!|Perfeito!} 🥰 Por favor me envie a foto ou PDF do comprovante de R$ 7,90 aqui para eu liberar o Pack imediatamente!`);
+        await supabase.from('leads').update({ status: 'AGUARDANDO_COMPROVANTE_DOWNSELL_PACK' }).eq('phone', dbPhone);
       }
       else if (isSim) {
-        const msgPixDownsell = `{Que bom que decidiu aproveitar!|Excelente!} 🎉\nA Chave Pix para o Pack (com desconto) é:\n*CPF:* 83647139904\n*Nome:* Ney Carlos Manoel\n*Valor:* R$ 7,90`;
+        const msgPixDownsell = `{Que bom que decidiu aproveitar!|Excelente!} 🎉\nA Chave Pix para o Pack (com desconto especial) é:\n*CPF:* 83647139904\n*Nome:* Ney Carlos Manoel\n*Valor:* R$ 7,90\n\nAssim que fizer, é só me mandar o comprovante aqui para liberar o seu acesso! 🥰`;
         await sendWameText(phone, msgPixDownsell);
-        await supabase.from('leads').update({ status: 'AGUARDANDO_COMPROVANTE_DOWNSELL' }).eq('phone', dbPhone);
-      } else if (isNao) {
-        const msgFimDownsell = `Tudo bem, sem problemas! Aproveite muito as receitas e desejo todo sucesso do mundo nas suas vendas! 🥰`;
+
+        const reminderId = await scheduleReminder('REMINDER_RECEIPT_PACK_DOWNSELL', '1h');
+        await supabase.from('leads').update({
+          status: 'AGUARDANDO_COMPROVANTE_DOWNSELL_PACK',
+          qstash_reminder_id: reminderId
+        }).eq('phone', dbPhone);
+      }
+      else if (isNao) {
+        const msgFimDownsell = `Tudo bem, sem problemas! Aproveite muito as receitas e desejo todo sucesso do mundo nas suas vendas! Conte comigo se precisar de ajuda! 🥰💛`;
         await sendWameText(phone, msgFimDownsell);
         await supabase.from('leads').update({ status: 'CONCLUIDO_RECUSOU_TUDO' }).eq('phone', dbPhone);
-      } else {
-        const msgErro = `Desculpe 😊\n\nPara continuar preciso apenas que responda:\n\nDigite 1 para SIM\nDigite 2 para NÃO`;
-        await sendWameText(phone, msgErro);
+      }
+      else {
+        await sendWameText(phone, `Desculpe 😊 Para continuar preciso apenas que responda:\n\nDigite 1 para SIM\nDigite 2 para NÃO`);
       }
     }
 
-    // -------------------------------------------------------------
-    // ETAPA 6: Aguardando Comprovante Downsell (R$ 7,90)
-    // -------------------------------------------------------------
-    else if (status === 'AGUARDANDO_COMPROVANTE_DOWNSELL') {
+    // =========================================================================
+    // ETAPA 8: Comprovante do Downsell do Pack (R$ 7,90)
+    // =========================================================================
+    else if (status === 'AGUARDANDO_COMPROVANTE_DOWNSELL_PACK' || status === 'AGUARDANDO_COMPROVANTE_DOWNSELL') {
       if (isComprovanteMedia) {
-        const msgFimDownsell = `{Obrigada!|Perfeito!} Comprovante recebido!\n\nAqui está o link de acesso seguro ao seu Pack Lucratividade Garantida no Google Drive:\n👉 https://drive.google.com/drive/folders/1-yGlJKQX7_fluzDFWaj9wriB-EfhWvJd\n\nDesejo a você muito sucesso nas suas vendas! 💛`;
+        await cancelExistingReminder();
+
+        const msgFimDownsell = `{Obrigada!|Perfeito!} Comprovante de R$ 7,90 recebido!\n\nAqui está o link de acesso seguro ao seu *Pack Lucratividade Garantida* no Google Drive:\n👉 https://drive.google.com/drive/folders/1-yGlJKQX7_fluzDFWaj9wriB-EfhWvJd\n\nDesejo a você muito sucesso nas suas vendas! 💛🚀`;
         await sendWameText(phone, msgFimDownsell);
         await supabase.from('leads').update({ status: 'CONCLUIDO_DOWNSELL' }).eq('phone', dbPhone);
+
       } else if (isAudio) {
-        const msgAudio = `{Olá|Oi}! Ouvi seu áudio 🥰 Mas preciso que você me envie a foto (print) ou PDF do comprovante de R$ 7,90 para eu liberar o link do Pack para você!`;
-        await sendWameText(phone, msgAudio);
+        await sendWameText(phone, `{Olá|Oi}! Ouvi seu áudio 🥰 Mas preciso que você me envie a foto (print) ou PDF do comprovante de R$ 7,90 para eu liberar o link do Pack para você!`);
       } else {
-        const msgErroComp = `{Perfeito|Tudo bem} 😊\n\nAssim que você enviar o comprovante de R$ 7,90 eu te envio o link de acesso ao Pack!`;
-        await sendWameText(phone, msgErroComp);
+        await sendWameText(phone, `{Perfeito|Tudo bem} 😊 Assim que você enviar o comprovante de R$ 7,90 eu te envio o link de acesso ao Pack!`);
       }
     }
-    
-    // -------------------------------------------------------------
-    // ETAPA 7: Lead já concluiu o fluxo mas respondeu uma mensagem atrasada
-    // -------------------------------------------------------------
+
+    // =========================================================================
+    // ETAPA 9: Lead já concluiu e respondeu algo depois
+    // =========================================================================
     else if (status.startsWith('CONCLUIDO')) {
-      const isSimOrNao = normalizedText === '1' || normalizedText === '2' || /\b(sim|n[ãa]o)\b/.test(normalizedText);
-      if (isSimOrNao) {
-        await sendWameText(phone, `{Oie!|Olá!} 🥰 Você já garantiu e recebeu todo o seu material!\n\nDá uma olhadinha nas mensagens logo acima para acessar os PDFs e o material que te enviei. Se precisar de alguma ajuda com as receitas, estarei por aqui! 💛`);
+      if (normalizedText === '1' || normalizedText === '2' || /\b(sim|n[ãa]o)\b/.test(normalizedText)) {
+        await sendWameText(phone, `{Oie!|Olá!} 🥰 Você já garantiu e recebeu todo o seu material!\n\nDá uma olhadinha nas mensagens logo acima para acessar os links e materiais que te enviei. Se precisar de alguma ajuda com as receitas, estarei por aqui! 💛`);
       }
     }
 

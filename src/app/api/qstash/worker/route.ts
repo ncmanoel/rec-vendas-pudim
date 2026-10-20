@@ -171,6 +171,43 @@ export async function POST(request: Request) {
       await sendWameText(phone, lembrete);
       await supabase.from('leads').update({ reminder_count: 2 }).eq('phone', phone);
     }
+    // NOVOS LEMBRETES DE PERSEGUIÇÃO DE UPSELL / DOWNSELL
+    else if (action === 'REMINDER_UPSELL_PLANILHA') {
+      if (lead.status === 'AGUARDANDO_RESPOSTA_UPSELL_PLANILHA') {
+        const lembrete = `{Olá|Oi|Oie} ${firstName}! 🥰 Passando só para saber se você conseguiu ver a minha mensagem acima sobre a Planilha Mágica de Precificação?\n\nComo você acabou de entrar, guardei a sua condição especial de R$ 9,90 para você não ficar sem, tá bem?\n\nDigite 1 para SIM\nDigite 2 para NÃO`;
+        await sendWameText(phone, lembrete);
+      }
+    }
+    else if (action === 'REMINDER_RECEIPT_PLANILHA') {
+      if (lead.status === 'AGUARDANDO_COMPROVANTE_UPSELL_PLANILHA') {
+        const lembrete = `{Olá|Oi|Oie} ${firstName}! 🥰 Passando para conferir se deu tudo certo com o seu Pix de R$ 9,90 da Planilha Mágica.\n\nAssim que fizer, é só me mandar o comprovante aqui que já te envio o link de acesso no Drive! 📊💛`;
+        await sendWameText(phone, lembrete);
+      }
+    }
+    else if (action === 'REMINDER_UPSELL_PACK') {
+      if (lead.status === 'AGUARDANDO_RESPOSTA_UPSELL_PACK' || lead.status === 'AGUARDANDO_RESPOSTA_UPSELL') {
+        const lembrete = `{Olá|Oi|Oie} ${firstName}! 🥰 Conseguiu ver a condição especial das 41 vídeo aulas do Pack Lucratividade acima?\n\nGuardei esse super desconto de R$ 11,90 para você acelerar suas vendas junto com o seu método!\n\nDigite 1 para SIM\nDigite 2 para NÃO`;
+        await sendWameText(phone, lembrete);
+      }
+    }
+    else if (action === 'REMINDER_RECEIPT_PACK') {
+      if (lead.status === 'AGUARDANDO_COMPROVANTE_UPSELL_PACK' || lead.status === 'AGUARDANDO_COMPROVANTE_UPSELL') {
+        const lembrete = `{Olá|Oi|Oie} ${firstName}! 🥰 Estou por aqui guardando o seu acesso ao Pack Lucratividade com as 41 vídeo aulas.\n\nSe já fez o Pix de R$ 11,90, me manda o comprovante aqui para eu liberar o seu link agora mesmo! 💵💛`;
+        await sendWameText(phone, lembrete);
+      }
+    }
+    else if (action === 'REMINDER_DOWNSELL_PACK') {
+      if (lead.status === 'AGUARDANDO_RESPOSTA_DOWNSELL_PACK' || lead.status === 'AGUARDANDO_RESPOSTA_DOWNSELL') {
+        const lembrete = `{Olá|Oi|Oie} ${firstName}! 🥰 Só lembrando que liberei aquela condição de R$ 7,90 para o Pack com as 41 aulas para você não ficar sem!\n\nPosso liberar o seu acesso por R$ 7,90?\nDigite 1 para SIM\nDigite 2 para NÃO`;
+        await sendWameText(phone, lembrete);
+      }
+    }
+    else if (action === 'REMINDER_RECEIPT_PACK_DOWNSELL') {
+      if (lead.status === 'AGUARDANDO_COMPROVANTE_DOWNSELL_PACK' || lead.status === 'AGUARDANDO_COMPROVANTE_DOWNSELL') {
+        const lembrete = `{Olá|Oi|Oie} ${firstName}! 🥰 Passando para conferir se deu certo o seu Pix com desconto de R$ 7,90 do Pack!\n\nAssim que mandar o comprovante aqui eu já te envio o link de acesso! 💛`;
+        await sendWameText(phone, lembrete);
+      }
+    }
 
     return NextResponse.json({ success: true });
   } catch (error) {

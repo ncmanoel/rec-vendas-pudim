@@ -33,9 +33,10 @@ export async function POST(request: Request) {
     }
 
     const firstName = fullName.split(' ')[0];
+    const baseUrl = process.env.NEXT_PUBLIC_APP_URL || 'https://rec-vendas-pudim.vercel.app';
 
     // =========================================================================
-    // FLUXO DE COMPRA APROVADA (Celetus Pix Pago, Cartão Aprovado, etc.)
+    // FLUXO DE COMPRA APROVADA NA CELETUS (Pix Pago, Cartão Aprovado, etc.)
     // =========================================================================
     if (isApproved) {
       console.log(`[Celetus Webhook] Pagamento APROVADO recebido para: ${phone} (${firstName})`);
@@ -54,7 +55,7 @@ export async function POST(request: Request) {
         return NextResponse.json({ message: 'Webhook duplicado já processado' }, { status: 200 });
       }
 
-      // Cancela mensagens agendadas no QStash para o lead
+      // Cancela mensagens antigas agendadas no QStash para o lead
       const { data: leadData } = await supabase
         .from('leads')
         .select('qstash_reminder_id, status')
@@ -68,17 +69,6 @@ export async function POST(request: Request) {
         } catch (e) {
           console.error(`[Celetus Webhook] Erro ao cancelar lembrete no QStash:`, e);
         }
-      }
-
-      // Se o lead não existia no banco (comprou direto sem abandono), cria registro
-      if (!leadData) {
-        await supabase.from('leads').upsert({
-          phone: phone,
-          name: firstName,
-          email: email,
-          product_name: payload.items?.[0]?.name || 'Receitas de Pudim sem Forno',
-          status: 'CONCLUIDO_CELETUS'
-        });
       }
 
       // -----------------------------------------------------------------------
@@ -115,7 +105,6 @@ export async function POST(request: Request) {
             totalNetAllocated += itemNet;
           }
         } else {
-          // Fallback se comissão não for enviada
           const fee = (item.amount * 0.049) + 1.00;
           itemNet = Math.round(Math.max(0, item.amount - fee) * 100) / 100;
         }
@@ -156,61 +145,144 @@ export async function POST(request: Request) {
 
       console.log(`[Celetus Webhook] ${processedItems.length} itens inseridos em vendas para ${phone}`);
 
-      // -----------------------------------------------------------------------
-      // 5. Entregas e Comunicação Personalizada via WhatsApp
-      // -----------------------------------------------------------------------
+      // Identifica quais produtos o cliente comprou
       const hasPlanilha = processedItems.some(i => i.isOB && i.name.toLowerCase().includes('planilha'));
       const hasPack = processedItems.some(i => i.isOB && (i.name.toLowerCase().includes('pack') || i.name.toLowerCase().includes('lucratividade')));
 
-      // Sempre envia os dois PDFs padrão (Pudim e Caldas)
+      // -----------------------------------------------------------------------
+      // 5. Entregas Imediatas dos PDFs Base (Pudim e Caldas)
+      // -----------------------------------------------------------------------
       await sendWameDocument(phone, "https://xzysqeivbibosmryjsqm.supabase.co/storage/v1/object/public/arquivos-bot/Receitas%20de%20Pudim%20Sem%20Forno.pdf", "Receitas de Pudim Sem Forno.pdf");
       await new Promise(r => setTimeout(r, 2000));
 
       await sendWameDocument(phone, "https://xzysqeivbibosmryjsqm.supabase.co/storage/v1/object/public/arquivos-bot/Caldas%20que%20Vendem.pdf", "Caldas que Vendem.pdf");
       await new Promise(r => setTimeout(r, 1500));
 
+      // =======================================================================
       // CENÁRIO A: Comprou Pudim + Planilha + Pack (COMPLETO)
+      // =======================================================================
       if (hasPlanilha && hasPack) {
-        await supabase.from('leads').update({ status: 'CONCLUIDO_CELETUS' }).eq('phone', phone);
+        await supabase.from('leads').upsert({
+          phone: phone,
+          name: firstName,
+          email: email,
+          product_name: 'Combo Completo (Celetus)',
+          status: 'CONCLUIDO_CELETUS'
+        });
 
         const msgCompleta = `{Olá|Oi|Oie} ${firstName}! Parabéns pela sua compra completa! 🥰 Como um bônus de agilidade, acabei de te enviar os materiais em PDF por aqui também para facilitar o seu acesso!\n\nE como você aproveitou e garantiu os materiais complementares, aqui estão os seus links de acesso:\n\n📊 *Planilha Mágica de Precificação:*\n👉 https://drive.google.com/drive/folders/11XJvsadAyyFRFxqCaF9oKTk5XK0YpIM_?usp=sharing\n\n💵 *Pack Lucratividade Garantida:*\n👉 https://drive.google.com/drive/folders/1-yGlJKQX7_fluzDFWaj9wriB-EfhWvJd\n\nDesejo a você muito sucesso nas suas receitas e vendas! 🚀💛`;
         await sendWameText(phone, msgCompleta);
         return NextResponse.json({ success: true, message: 'Materiais completos enviados.' }, { status: 200 });
       }
 
-      // CENÁRIO B: Comprou Pudim + Planilha (Sem Pack) -> Entrega Planilha e oferece Pack como Upsell!
+      // =======================================================================
+      // CENÁRIO B: Comprou Pudim + Planilha (Falta o Pack)
+      // Entrega Planilha e persegue ofertando o Pack por R$ 11,90!
+      // =======================================================================
       if (hasPlanilha && !hasPack) {
-        await supabase.from('leads').update({ status: 'AGUARDANDO_RESPOSTA_UPSELL' }).eq('phone', phone);
-
-        const msgPlanilha = `{Olá|Oi|Oie} ${firstName}! Parabéns pela compra! 🥰 Como um bônus de agilidade, acabei de te enviar os PDFs por aqui também!\n\nE aqui está o link de acesso seguro à sua *Planilha Mágica de Precificação*:\n👉 https://drive.google.com/drive/folders/11XJvsadAyyFRFxqCaF9oKTk5XK0YpIM_?usp=sharing`;
+        const msgPlanilha = `{Olá|Oi|Oie} ${firstName}! Parabéns pela sua compra! 🥰 Como um bônus de agilidade, acabei de te enviar os PDFs por aqui também!\n\nE aqui está o link de acesso seguro à sua *Planilha Mágica de Precificação*:\n👉 https://drive.google.com/drive/folders/11XJvsadAyyFRFxqCaF9oKTk5XK0YpIM_?usp=sharing`;
         await sendWameText(phone, msgPlanilha);
         await new Promise(r => setTimeout(r, 2000));
 
-        const msgUpsellPack = `Aproveitando, deixa eu te fazer uma pergunta rápida...\n\nEu tenho o *Pack Lucratividade Garantida* com *41 Vídeo Aulas Práticas* + Guias e Checklists para acelerar suas vendas.\n\nEle custa originalmente *R$ 47,00*, mas como você acabou de se tornar aluna, posso liberar o acesso completo agora por apenas *+ R$ 11,90* no Pix.\n\nQuer aproveitar esse mega desconto e levar o Pack por R$ 11,90?\nDigite 1 para SIM\nDigite 2 para NÃO`;
+        const msgUpsellPack = `Aproveitando, deixa eu te fazer uma pergunta rápida... 🥰\n\nSe você quer acelerar seus resultados e começar a vender pudins toda semana, eu tenho o *Pack Lucratividade Garantida* 💵\nSão *41 Vídeo Aulas Práticas (passo a passo)* + Modelos Prontos de Divulgação e Estratégias de Venda Rápida!\n\nEle custa originalmente *R$ 47,00*, mas como você acabou de se tornar aluna, posso liberar o acesso completo para você agora por apenas *+ R$ 11,90* no Pix.\n\nQuer aproveitar esse mega desconto e levar as *41 Vídeo Aulas* por R$ 11,90?\nDigite 1 para SIM\nDigite 2 para NÃO`;
         await sendWameText(phone, msgUpsellPack);
-        return NextResponse.json({ success: true, message: 'Planilha entregue e Upsell do Pack disparado.' }, { status: 200 });
+
+        // Agenda Follow-up de 2 horas no QStash se não responder
+        let reminderId = null;
+        try {
+          const qres: any = await qstashClient.publishJSON({
+            url: `${baseUrl}/api/qstash/worker`,
+            body: { action: 'REMINDER_UPSELL_PACK', phone, firstName },
+            delay: 2 * 60 * 60
+          });
+          reminderId = qres.messageId;
+        } catch (e) {
+          console.error('[Celetus Webhook] Erro ao agendar follow-up do Pack:', e);
+        }
+
+        await supabase.from('leads').upsert({
+          phone: phone,
+          name: firstName,
+          email: email,
+          product_name: 'Pudim + Planilha',
+          status: 'AGUARDANDO_RESPOSTA_UPSELL_PACK',
+          qstash_reminder_id: reminderId
+        });
+
+        return NextResponse.json({ success: true, message: 'Planilha entregue e Upsell do Pack disparado com follow-up.' }, { status: 200 });
       }
 
-      // CENÁRIO C: Comprou Pudim + Pack (Sem Planilha)
+      // =======================================================================
+      // CENÁRIO C: Comprou Pudim + Pack (Falta a Planilha)
+      // Entrega o Pack e persegue ofertando a Planilha Mágica por R$ 9,90!
+      // =======================================================================
       if (!hasPlanilha && hasPack) {
-        await supabase.from('leads').update({ status: 'CONCLUIDO_CELETUS' }).eq('phone', phone);
-
-        const msgPack = `{Olá|Oi|Oie} ${firstName}! Parabéns pela compra! 🥰 Como um bônus de agilidade, acabei de te enviar os materiais em PDF por aqui também para facilitar o seu acesso!\n\nE como você aproveitou e levou o *Pack Lucratividade Garantida*, aqui está o link de acesso seguro no Google Drive:\n👉 https://drive.google.com/drive/folders/1-yGlJKQX7_fluzDFWaj9wriB-EfhWvJd\n\nDesejo a você muito sucesso nas suas vendas! 🚀💛`;
+        const msgPack = `{Olá|Oi|Oie} ${firstName}! Parabéns pela compra completa do método e do Pack! 🥰 Como um bônus de agilidade, acabei de te enviar os materiais em PDF por aqui também para facilitar o seu acesso!\n\nE aqui está o link de acesso seguro ao seu *Pack Lucratividade Garantida* no Google Drive:\n👉 https://drive.google.com/drive/folders/1-yGlJKQX7_fluzDFWaj9wriB-EfhWvJd`;
         await sendWameText(phone, msgPack);
-        return NextResponse.json({ success: true, message: 'Pack enviado.' }, { status: 200 });
+        await new Promise(r => setTimeout(r, 2000));
+
+        const msgUpsellPlanilha = `Aproveitando, deixa eu te fazer uma pergunta rápida... 🥰\n\nMuitas alunas têm medo de errar no preço das receitas e acabar tendo prejuízo ou vendendo pudim barato demais.\n\nPara resolver isso, eu criei a *Planilha Mágica de Precificação Automática* 📊\nVocê só preenche quanto pagou nos ingredientes e ela calcula na hora o *custo exato por fatia/pudim* e o *preço de venda ideal com até 200% de lucro*!\n\nEla custa originalmente R$ 27,00, mas como você acabou de entrar, consigo liberar o acesso vitalício agora por apenas *+ R$ 9,90* no Pix!\n\nQuer aproveitar e garantir a sua Planilha por R$ 9,90?\nDigite 1 para SIM\nDigite 2 para NÃO`;
+        await sendWameText(phone, msgUpsellPlanilha);
+
+        // Agenda Follow-up de 2 horas no QStash se não responder
+        let reminderId = null;
+        try {
+          const qres: any = await qstashClient.publishJSON({
+            url: `${baseUrl}/api/qstash/worker`,
+            body: { action: 'REMINDER_UPSELL_PLANILHA', phone, firstName },
+            delay: 2 * 60 * 60
+          });
+          reminderId = qres.messageId;
+        } catch (e) {
+          console.error('[Celetus Webhook] Erro ao agendar follow-up da Planilha:', e);
+        }
+
+        await supabase.from('leads').upsert({
+          phone: phone,
+          name: firstName,
+          email: email,
+          product_name: 'Pudim + Pack',
+          status: 'AGUARDANDO_RESPOSTA_UPSELL_PLANILHA',
+          qstash_reminder_id: reminderId
+        });
+
+        return NextResponse.json({ success: true, message: 'Pack entregue e Upsell da Planilha disparado com follow-up.' }, { status: 200 });
       }
 
-      // CENÁRIO D: Comprou Somente o Pudim (0 OBs) -> Dispara Upsell do Pack
-      await supabase.from('leads').update({ status: 'AGUARDANDO_RESPOSTA_UPSELL' }).eq('phone', phone);
-
-      const msgPudim = `{Olá|Oi|Oie} ${firstName}! Parabéns pela compra do método. Como um bônus de agilidade, acabei de te enviar o seu material por aqui também para facilitar o seu acesso! 🥰`;
+      // =======================================================================
+      // CENÁRIO D: Comprou Somente o Pudim (Sem nenhum OB)
+      // Entrega os PDFs e inicia a esteira ofertando a Planilha Mágica por R$ 9,90!
+      // =======================================================================
+      const msgPudim = `{Olá|Oi|Oie} ${firstName}! Parabéns pela compra do método. Como um bônus de agilidade, acabei de te enviar o seu material em PDF por aqui também para facilitar o seu acesso! 🥰`;
       await sendWameText(phone, msgPudim);
       await new Promise(r => setTimeout(r, 1500));
 
-      const msgUpsell = `Aproveitando, deixa eu te fazer uma pergunta rápida...\n\nMuitas alunas têm dificuldade na hora de calcular o preço das receitas e acelerar as vendas no início.\n\nEu tenho o *Pack Lucratividade Garantida* com *41 Vídeo Aulas Práticas (passo a passo)* + Guias e Checklists de Precificação.\n\nEle custa originalmente *R$ 47,00*, mas como você acabou de se tornar aluna, posso liberar o acesso completo para você agora por apenas *+ R$ 11,90*.\n\nQuer aproveitar esse mega desconto e levar as *41 Vídeo Aulas* por R$ 11,90?\nDigite 1 para SIM\nDigite 2 para NÃO`;
-      await sendWameText(phone, msgUpsell);
+      const msgOfertaPlanilha = `Aproveitando, deixa eu te fazer uma pergunta rápida... 🥰\n\nMuitas alunas têm medo de errar no preço das receitas e acabar tendo prejuízo ou vendendo pudim barato demais.\n\nPara resolver isso, eu criei a *Planilha Mágica de Precificação Automática* 📊\nVocê só preenche quanto pagou nos ingredientes e ela calcula na hora o *custo exato por fatia/pudim* e o *preço de venda ideal com até 200% de lucro*!\n\nEla custa originalmente R$ 27,00, mas para você que é aluna nova consigo liberar agora por apenas *R$ 9,90* no Pix!\n\nQuer aproveitar e garantir a sua Planilha por R$ 9,90?\nDigite 1 para SIM\nDigite 2 para NÃO`;
+      await sendWameText(phone, msgOfertaPlanilha);
 
-      return NextResponse.json({ success: true, message: 'Pudim entregue e Upsell disparado.' }, { status: 200 });
+      // Agenda Follow-up de 2 horas no QStash se não responder
+      let reminderId = null;
+      try {
+        const qres: any = await qstashClient.publishJSON({
+          url: `${baseUrl}/api/qstash/worker`,
+          body: { action: 'REMINDER_UPSELL_PLANILHA', phone, firstName },
+          delay: 2 * 60 * 60
+        });
+        reminderId = qres.messageId;
+      } catch (e) {
+        console.error('[Celetus Webhook] Erro ao agendar follow-up da Planilha:', e);
+      }
+
+      await supabase.from('leads').upsert({
+        phone: phone,
+        name: firstName,
+        email: email,
+        product_name: 'Pudim sem Forno',
+        status: 'AGUARDANDO_RESPOSTA_UPSELL_PLANILHA',
+        qstash_reminder_id: reminderId
+      });
+
+      return NextResponse.json({ success: true, message: 'Pudim entregue e esteira da Planilha iniciada.' }, { status: 200 });
     }
 
     // =========================================================================
@@ -238,7 +310,6 @@ export async function POST(request: Request) {
     }
 
     // Inicia funil de recuperação via QStash
-    const baseUrl = process.env.NEXT_PUBLIC_APP_URL || 'https://rec-vendas-pudim.vercel.app';
     const pixCode = payload.charge?.pix_data?.pix_qr_code;
 
     await qstashClient.publishJSON({
