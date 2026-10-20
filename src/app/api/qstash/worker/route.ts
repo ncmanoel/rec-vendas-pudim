@@ -27,12 +27,29 @@ export async function POST(request: Request) {
       return NextResponse.json({ success: true, reason: 'lead_not_found' });
     }
 
-    // Se o lead já avançou para a compra, nós ignoramos qualquer ação agendada
-    const safeStatuses = ['AGUARDANDO_RESPOSTA_UPSELL', 'AGUARDANDO_COMPROVANTE_UPSELL', 'CONCLUIDO_UPSELL', 'CONCLUIDO_DOWNSELL', 'CONCLUIDO_RECUSOU_TUDO', 'CONCLUIDO_CELETUS', 'CONCLUIDO'];
+    // Se o lead já avançou para a compra ou cancelou, ignoramos qualquer ação agendada
+    const safeStatuses = [
+      'AGUARDANDO_RESPOSTA_UPSELL', 
+      'AGUARDANDO_COMPROVANTE_UPSELL', 
+      'AGUARDANDO_RESPOSTA_DOWNSELL',
+      'AGUARDANDO_COMPROVANTE_DOWNSELL',
+      'CONCLUIDO_UPSELL', 
+      'CONCLUIDO_DOWNSELL', 
+      'CONCLUIDO_RECUSOU_TUDO', 
+      'CONCLUIDO_CELETUS', 
+      'CONCLUIDO',
+      'CANCELADO'
+    ];
     
     if (safeStatuses.includes(lead.status)) {
-      console.log(`[Worker] Abortando ação ${action} pois lead já está no status avançado: ${lead.status}`);
+      console.log(`[Worker] Abortando ação ${action} pois lead já está no status avançado/final: ${lead.status}`);
       return NextResponse.json({ success: true, reason: 'lead_already_advanced' });
+    }
+
+    // Se o lead já enviou o comprovante ou aguarda comprovante, não mande lembretes da pergunta de permissão (1 ou 2)
+    if (lead.status === 'AGUARDANDO_COMPROVANTE' && (action === 'REMINDER_1_QUESTION' || action === 'REMINDER_2_QUESTION')) {
+      console.log(`[Worker] Abortando lembrete de pergunta pois lead já está aguardando comprovante`);
+      return NextResponse.json({ success: true, reason: 'lead_already_awaiting_receipt' });
     }
 
     if (action === 'START_PIX_FUNNEL') {

@@ -34,8 +34,11 @@ export default function AdminDashboard() {
   const handleProductSelect = (e: React.ChangeEvent<HTMLSelectElement>) => {
     const prod = e.target.value;
     let val = '10.00';
+    if (prod === 'Planilha Mágica (Upsell)') val = '9.90';
     if (prod === 'Pack Lucratividade (Upsell)') val = '11.90';
+    if (prod === 'Combo: Pudim + Planilha') val = '19.90';
     if (prod === 'Combo: Pudim + Pack') val = '21.90';
+    if (prod === 'Combo Completo: Pudim + Planilha + Pack') val = '27.90';
     if (prod === 'Outro') val = '0.00';
     setSaleForm({ ...saleForm, product: prod, value: val });
   };
@@ -474,7 +477,7 @@ export default function AdminDashboard() {
                         <th rowSpan={2} className="p-3 border-r border-b border-blue-500 align-middle">Compradores</th>
                         <th rowSpan={2} className="p-3 border-r border-b border-blue-500 align-middle">CPA</th>
                         <th rowSpan={2} className="p-3 border-r border-b border-blue-500 align-middle">Ticket Médio</th>
-                        <th rowSpan={2} className="p-3 border-r border-b border-blue-500 align-middle">ROI</th>
+                        <th rowSpan={2} className="p-3 border-r border-b border-blue-500 align-middle" title="Return on Ad Spend (Receita / Investimento)">ROAS</th>
                         <th colSpan={2} className="p-2 border-r border-b border-yellow-500 bg-yellow-400 text-slate-800">Qtde O.B.</th>
                         <th colSpan={2} className="p-2 border-r border-b border-yellow-500 bg-yellow-500 text-slate-800">Valor O.B.</th>
                         <th rowSpan={2} className="p-3 border-b border-green-600 bg-green-500 text-white align-middle">Venda WA</th>
@@ -582,7 +585,13 @@ export default function AdminDashboard() {
                 <div>
                   <label className="block text-sm font-medium mb-1">Produto</label>
                   <select value={saleForm.product} onChange={handleProductSelect} className="w-full p-2.5 border rounded-lg">
-                    <option value="Pudim sem Forno (Principal)">Pudim sem Forno (Principal)</option><option value="Pack Lucratividade (Upsell)">Pack Lucratividade (Upsell)</option><option value="Combo: Pudim + Pack">Combo: Pudim + Pack</option><option value="Outro">Outro (Informar valor livre)</option>
+                    <option value="Pudim sem Forno (Principal)">Pudim sem Forno (Principal)</option>
+                    <option value="Planilha Mágica (Upsell)">Planilha Mágica (Upsell)</option>
+                    <option value="Pack Lucratividade (Upsell)">Pack Lucratividade (Upsell)</option>
+                    <option value="Combo: Pudim + Planilha">Combo: Pudim + Planilha</option>
+                    <option value="Combo: Pudim + Pack">Combo: Pudim + Pack</option>
+                    <option value="Combo Completo: Pudim + Planilha + Pack">Combo Completo: Pudim + Planilha + Pack</option>
+                    <option value="Outro">Outro (Informar valor livre)</option>
                   </select>
                 </div>
                 <div><label className="block text-sm font-medium mb-1">Valor Líquido (R$)</label><input type="number" step="0.01" value={saleForm.value} onChange={(e) => setSaleForm({...saleForm, value: e.target.value})} className="w-full p-2.5 border rounded-lg" required /></div>
@@ -630,8 +639,11 @@ export default function AdminDashboard() {
                   <div className="flex flex-wrap gap-1 mt-1.5">
                     {[
                       'Pudim sem Forno (Principal)',
+                      'Planilha Mágica (Upsell)',
                       'Pack Lucratividade (Upsell)',
-                      'Combo: Pudim + Pack'
+                      'Combo: Pudim + Planilha',
+                      'Combo: Pudim + Pack',
+                      'Combo Completo: Pudim + Planilha + Pack'
                     ].map((sug) => (
                       <button
                         key={sug}

@@ -32,10 +32,6 @@ export async function GET(req: Request) {
 
     // For Supabase: compensate BRT (-3h) so day boundaries are correct
     const sinceUTC = `${sinceStr}T03:00:00Z`;   // Start of BRT day = 03:00 UTC
-    const untilUTC = `${untilStr}T02:59:59Z`;   // End of BRT day = next day 02:59 UTC
-    // Special case: if until is today, use end of UTC day to not miss late-night UTC sales
-    const untilUTCFull = `${untilStr}T26:59:59Z`; // will be normalized, use tomorrow 02:59
-    // Safer: just go until end of UTC day for "until" date + 1 day
     const untilDate = new Date(untilStr + 'T00:00:00Z');
     untilDate.setDate(untilDate.getDate() + 1);
     const untilUTCSafe = untilDate.toISOString().replace('.000Z', 'Z').split('T')[0] + 'T02:59:59Z';
@@ -212,10 +208,13 @@ export async function GET(req: Request) {
       const isWA = venda.utm_medium === 'pix_direto'; // WhatsApp / Pix manual
       
       // Detect OB by product name (works for both Celetus and WA)
-      const isOBByName = nomeProduto.includes('pack') || nomeProduto.includes('lucratividade') || nomeProduto.includes('order') || nomeProduto.includes('upsell');
+      const isOBByName = nomeProduto.includes('pack') || 
+                         nomeProduto.includes('lucratividade') || 
+                         nomeProduto.includes('planilha') || 
+                         nomeProduto.includes('order') || 
+                         nomeProduto.includes('upsell');
       
       // Celetus legacy combo detection (Main product name but with combo price ~18.64)
-      // We ONLY apply this to non-WA sales, because WA sales are manual and might legitimately be R$ 20 for 2 units, etc.
       const isCeletusLegacyComboPrice = !isWA && (valor > 15 && valor < 25);
       
       // A sale is a combo if it explicitly says combo OR if it has the Celetus legacy combo price
@@ -263,9 +262,11 @@ export async function GET(req: Request) {
           totalOrderBumps += 1;
         } else if (isCombo) {
           // Combo via WA: Base product is R$ 10.00. OB portion = valor - 10.00
-          dailyStats[date].obCountWA += 1;
+          // If valor > 25 (e.g. R$ 27.90 or 31.80), it includes both OBs (Planilha + Pack)
+          const numOBs = valor > 25 || nomeProduto.includes('completo') ? 2 : 1;
+          dailyStats[date].obCountWA += numOBs;
           dailyStats[date].obRevenueWA += Math.max(0, valor - 10);
-          totalOrderBumps += 1;
+          totalOrderBumps += numOBs;
         }
       } else {
         // Celetus sale
